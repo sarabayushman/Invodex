@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, sans-serif; background: #f8fafc; color: #0f172a; }
+button, input, textarea, select { font: inherit; }
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th { text-align: left; color: #64748b; font-weight: 600; padding: 12px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.data-table td { padding: 12px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 12px; font-weight: 600; color: #475569; }
+.field input, .field textarea, .field select { border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 10px; background: white; min-width: 0; }
+.field textarea { min-height: 84px; resize: vertical; }
+.empty-illustration { background: linear-gradient(135deg, #eff6ff, #f8fafc); border: 1px dashed #bfdbfe; }
+@media (max-width: 900px) {
+  .desktop-grid { grid-template-columns: 1fr !important; }
+}
