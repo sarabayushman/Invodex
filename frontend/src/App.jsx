@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Bell,
@@ -21,7 +21,7 @@ import {
   Users,
   WalletCards,
 } from "lucide-react";
-import { Link, Route, Routes } from "react-router-dom";
+import { Link, Route, Routes, useNavigate } from "react-router-dom";
 import { Button } from "./components/ui/button";
 import {
   Card,
@@ -33,6 +33,7 @@ import {
 } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
+import { supabase, upsertUserProfile } from "./supabaseClient";
 
 const invoices = [
   { id: "INV-2026-0148", customer: "Aarav Auto Distributors", total: 182450, status: "Pending Payment", days: 6, billingDate: "2026-05-14" },
@@ -66,6 +67,23 @@ const navItems = [
 const filters = ["All", "Pending Payment", "Past Due Date", "Pending Delivery", "Raised Issues"];
 
 function App() {
+  useEffect(() => {
+    window.signout = async function signout() {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Invodex sign out failed:", error.message);
+        return;
+      }
+
+      console.log("Invodex sign out successful");
+      window.location.assign("/login");
+    };
+
+    return () => {
+      delete window.signout;
+    };
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<MainApp />} />
@@ -329,8 +347,71 @@ function formatMoney(value) {
 }
 
 function Login() {
+  const navigate = useNavigate();
+  const [authError, setAuthError] = useState("");
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function finishLogin(session) {
+      if (!session?.user) return;
+
+      const profileResult = await upsertUserProfile(session.user);
+      if (profileResult.error) {
+        console.warn("Invodex profile save skipped:", profileResult.error.message);
+      }
+
+      if (!mounted) return;
+      console.log("Invodex login successful:", session.user.email);
+      navigate("/", { replace: true });
+    }
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      finishLogin(data.session);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+        finishLogin(session);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, [navigate]);
+
   function handleLogin(event) {
     event.preventDefault();
+    setAuthError("Email and password sign in is not enabled yet. Use Google to continue.");
+  }
+
+  async function handleGoogleLogin() {
+    setAuthError("");
+    setIsSigningIn(true);
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/login`,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
+    });
+
+    if (error) {
+      setAuthError(error.message);
+      setIsSigningIn(false);
+    }
   }
 
   return (
@@ -344,10 +425,11 @@ function Login() {
           <CardHeader><CardTitle>Admin login</CardTitle><CardDescription>Enter your details to continue to your dashboard.</CardDescription></CardHeader>
           <CardContent>
             <form className="login-form" onSubmit={handleLogin}>
-              <Button type="button" className="google-button" aria-label="Continue with Google"><GoogleMark />Continue with Google</Button>
+              <Button type="button" className="google-button" aria-label="Continue with Google" disabled={isSigningIn} onClick={handleGoogleLogin}><GoogleMark />{isSigningIn ? "Opening Google..." : "Continue with Google"}</Button>
               <div className="login-divider"><span>or</span></div>
               <div className="form-field"><Label htmlFor="email">Email</Label><div className="input-wrap"><Mail aria-hidden="true" size={18} /><Input id="email" type="email" placeholder="name@company.com" autoComplete="email" /></div></div>
               <div className="form-field"><div className="field-row"><Label htmlFor="password">Password</Label><a href="/">Forgot password?</a></div><div className="input-wrap"><LockKeyhole aria-hidden="true" size={18} /><Input id="password" type="password" placeholder="Enter password" autoComplete="current-password" /></div></div>
+              {authError ? <p className="auth-error" role="alert">{authError}</p> : null}
               <Button type="submit" className="submit-button">Sign in<ArrowRight aria-hidden="true" size={18} /></Button>
             </form>
           </CardContent>
