@@ -1,222 +1,126 @@
-import { useEffect, useState } from "react";
-import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { ArrowRight, LockKeyhole, Mail } from "lucide-react";
+import { Button } from "./components/ui/button";
 import {
-  ArrowRight,
-  BarChart3,
-  Bell,
-  CheckCircle2,
-  FileText,
-  LayoutDashboard,
-  PackageCheck,
-  Send,
-  Sparkles,
-} from "lucide-react";
-import { getSummary, sendContactMessage } from "./api";
-
-const fallbackSummary = {
-  metrics: [
-    { label: "Monthly revenue", value: "₹8.4L", trend: "+18%" },
-    { label: "Open invoices", value: "37", trend: "-9%" },
-    { label: "Inventory alerts", value: "12", trend: "+3" },
-  ],
-  activity: [
-    {
-      title: "Invoice INV-2048 generated",
-      detail: "Sent to Aster Retail with GST details attached.",
-      time: "Today, 10:45 AM",
-    },
-    {
-      title: "Payment reminder queued",
-      detail: "Follow-up scheduled for overdue invoices.",
-      time: "Today, 9:20 AM",
-    },
-  ],
-};
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./components/ui/card";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
 
 function App() {
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <Link className="brand" to="/">
-          <span className="brand-mark">I</span>
-          <span>Invodex</span>
-        </Link>
-        <nav className="nav-links" aria-label="Primary navigation">
-          <NavLink to="/">Home</NavLink>
-          <NavLink to="/dashboard">Dashboard</NavLink>
-        </nav>
-      </header>
-
-      <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Routes>
-      </main>
-    </div>
-  );
-}
-
-function Home() {
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    message: "",
-  });
-  const [status, setStatus] = useState("");
-
-  async function handleSubmit(event) {
+  function handleLogin(event) {
     event.preventDefault();
-    setStatus("Sending...");
-
-    try {
-      const result = await sendContactMessage(form);
-      setStatus(result.reply);
-      setForm({ name: "", email: "", message: "" });
-    } catch {
-      setStatus("Backend unavailable locally. Add VITE_API_BASE_URL or deploy to Vercel.");
-    }
   }
 
   return (
-    <section className="home-grid">
-      <div className="hero-copy">
-        <span className="eyebrow">
-          <Sparkles size={16} />
-          Sample full-stack app
-        </span>
-        <h1>Invodex</h1>
-        <p>
-          A deployable React and FastAPI starter for invoices, inventory alerts,
-          and sales visibility.
-        </p>
-        <div className="hero-actions">
-          <Link className="primary-button" to="/dashboard">
-            Open dashboard
-            <ArrowRight size={18} />
-          </Link>
-          <a className="secondary-button" href="/api/health">
-            Check API
+    <main className="login-page">
+      <section className="login-shell" aria-label="Invodex sign in">
+        <div className="brand-panel">
+          <a className="brand-lockup" href="/" aria-label="Invodex home">
+            <span className="brand-mark" aria-hidden="true">
+              <span />
+              <span />
+            </span>
+            <span>Invodex</span>
           </a>
+
+          <div className="welcome-copy">
+            <p>Workspace access</p>
+            <h1>Sign in to manage invoices with clarity.</h1>
+          </div>
         </div>
-      </div>
 
-      <form className="contact-panel" onSubmit={handleSubmit}>
-        <h2>Quick enquiry</h2>
-        <label>
-          Name
-          <input
-            required
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
-            placeholder="Your name"
-          />
-        </label>
-        <label>
-          Email
-          <input
-            required
-            type="email"
-            value={form.email}
-            onChange={(event) => setForm({ ...form, email: event.target.value })}
-            placeholder="you@example.com"
-          />
-        </label>
-        <label>
-          Message
-          <textarea
-            required
-            value={form.message}
-            onChange={(event) => setForm({ ...form, message: event.target.value })}
-            placeholder="Tell us what you want to automate"
-          />
-        </label>
-        <button type="submit">
-          <Send size={18} />
-          Send
-        </button>
-        {status ? <p className="form-status">{status}</p> : null}
-      </form>
-    </section>
-  );
-}
+        <Card className="login-card">
+          <CardHeader>
+            <CardTitle>Welcome back</CardTitle>
+            <CardDescription>
+              Enter your details to continue to your dashboard.
+            </CardDescription>
+          </CardHeader>
 
-function Dashboard() {
-  const [summary, setSummary] = useState(fallbackSummary);
-  const [state, setState] = useState("loading");
+          <CardContent>
+            <form className="login-form" onSubmit={handleLogin}>
+              <Button type="button" className="google-button" aria-label="Continue with Google">
+                <svg
+                  className="google-mark"
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  focusable="false"
+                >
+                  <path
+                    fill="#4285F4"
+                    d="M21.8 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.5c-.2 1.3-.9 2.3-2 3v2.7h3.3c1.9-1.8 3-4.4 3-7.7z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 22c2.7 0 5-.9 6.7-2.5l-3.3-2.7c-.9.6-2.1 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3v2.8C4.7 19.8 8.1 22 12 22z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M6.4 13.7c-.2-.6-.3-1.2-.3-1.8s.1-1.2.3-1.8V7.3H3c-.7 1.4-1 2.9-1 4.6s.4 3.2 1 4.6l3.4-2.8z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 6.1c1.5 0 2.8.5 3.8 1.5l2.9-2.9C17 3 14.7 2 12 2 8.1 2 4.7 4.2 3 7.3l3.4 2.8C7.2 7.8 9.4 6.1 12 6.1z"
+                  />
+                </svg>
+                Continue with Google
+              </Button>
 
-  useEffect(() => {
-    getSummary()
-      .then((data) => {
-        setSummary(data);
-        setState("ready");
-      })
-      .catch(() => setState("offline"));
-  }, []);
-
-  return (
-    <section className="dashboard">
-      <div className="page-heading">
-        <span className="eyebrow">
-          <LayoutDashboard size={16} />
-          Dashboard
-        </span>
-        <h1>Sales command center</h1>
-        <p>
-          Live sample data comes from FastAPI. If the backend is offline, the UI
-          keeps a local preview visible.
-        </p>
-      </div>
-
-      <div className="status-line">
-        <CheckCircle2 size={18} />
-        {state === "ready" && "Connected to FastAPI"}
-        {state === "loading" && "Loading FastAPI data"}
-        {state === "offline" && "Showing preview data"}
-      </div>
-
-      <div className="metric-grid">
-        {summary.metrics.map((metric) => (
-          <article className="metric-card" key={metric.label}>
-            <span>{metric.label}</span>
-            <strong>{metric.value}</strong>
-            <small>{metric.trend}</small>
-          </article>
-        ))}
-      </div>
-
-      <div className="workbench">
-        <section className="activity-list">
-          <h2>Recent activity</h2>
-          {summary.activity.map((item) => (
-            <article className="activity-item" key={`${item.title}-${item.time}`}>
-              <FileText size={18} />
-              <div>
-                <h3>{item.title}</h3>
-                <p>{item.detail}</p>
-                <span>{item.time}</span>
+              <div className="login-divider">
+                <span>or</span>
               </div>
-            </article>
-          ))}
-        </section>
 
-        <section className="tool-list">
-          <h2>Operations</h2>
-          <button>
-            <PackageCheck size={18} />
-            Sync inventory
-          </button>
-          <button>
-            <Bell size={18} />
-            Queue reminders
-          </button>
-          <button>
-            <BarChart3 size={18} />
-            Export report
-          </button>
-        </section>
-      </div>
-    </section>
+              <div className="form-field">
+                <Label htmlFor="email">Email</Label>
+                <div className="input-wrap">
+                  <Mail aria-hidden="true" size={18} />
+                  <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@company.com"
+                  autoComplete="email"
+                  defaultValue="demo@invodex.app"
+                />
+                </div>
+              </div>
+
+              <div className="form-field">
+                <div className="field-row">
+                  <Label htmlFor="password">Password</Label>
+                  <a href="/">Forgot password?</a>
+                </div>
+                <div className="input-wrap">
+                  <LockKeyhole aria-hidden="true" size={18} />
+                  <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter password"
+                  autoComplete="current-password"
+                  defaultValue="password"
+                />
+                </div>
+              </div>
+
+              <Button type="submit" className="submit-button">
+                Sign in
+                <ArrowRight aria-hidden="true" size={18} />
+              </Button>
+            </form>
+          </CardContent>
+
+          <CardFooter>
+            <p>
+              New to Invodex? <a href="/">Request access</a>
+            </p>
+          </CardFooter>
+        </Card>
+      </section>
+    </main>
   );
 }
 
