@@ -33,6 +33,35 @@ a {
   text-decoration: none;
 }
 
+.welcome-page {
+  align-items: center;
+  background: #f7f7f4;
+  display: flex;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.welcome-panel {
+  display: grid;
+  gap: 20px;
+  justify-items: center;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.welcome-panel h1 {
+  color: #111111;
+  font-size: clamp(2.2rem, 8vw, 4.6rem);
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1;
+  margin: 0;
+}
+
+.welcome-button {
+  min-width: 132px;
+}
+
 .login-page {
   align-items: center;
   background:

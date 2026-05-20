@@ -1,4 +1,5 @@
 import { ArrowRight, LockKeyhole, Mail } from "lucide-react";
+import { Link, Route, Routes } from "react-router-dom";
 import { Button } from "./components/ui/button";
 import {
   Card,
@@ -12,6 +13,28 @@ import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
 
 function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Welcome />} />
+      <Route path="/login" element={<Login />} />
+    </Routes>
+  );
+}
+
+function Welcome() {
+  return (
+    <main className="welcome-page">
+      <section className="welcome-panel" aria-label="Welcome">
+        <h1>Welcome user</h1>
+        <Link className="button welcome-button" to="/login">
+          Login
+        </Link>
+      </section>
+    </main>
+  );
+}
+
+function Login() {
   function handleLogin(event) {
     event.preventDefault();
   }
