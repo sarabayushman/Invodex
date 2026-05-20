@@ -36,6 +36,18 @@ import {
 } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
+import {
+  bootstrapWorkspace,
+  createAutosaveQueue,
+  deleteInvoiceRecord,
+  fetchInvoiceWorkspace,
+  mapCustomerFromDb,
+  mapInvoiceFromDb,
+  mapProductFromDb,
+  saveInvoiceWithItems,
+  upsertCustomer,
+  upsertProduct,
+} from "./services/invodexData";
 import { getAuthRedirectUrl, supabase, upsertUserProfile } from "./supabaseClient";
 
 const baseInvoices = [
@@ -137,18 +149,38 @@ function App() {
 }
 
 function MainApp() {
+  const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState("Invoices");
   const [activeFilter, setActiveFilter] = useState("All");
   const [dateRange, setDateRange] = useState("This Month");
   const [customRange, setCustomRange] = useState({ start: "2026-05-01", end: "2026-05-31" });
   const [visibleCount, setVisibleCount] = useState(10);
-  const [invoiceList, setInvoiceList] = useState(() => baseInvoices.map(makeInvoice));
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState("INV-2026-0148");
+  const [orgId, setOrgId] = useState("");
+  const [invoiceList, setInvoiceList] = useState([]);
+  const [customerList, setCustomerList] = useState([]);
+  const [productList, setProductList] = useState([]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
+  const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
+  const [workspaceError, setWorkspaceError] = useState("");
   const [dialog, setDialog] = useState("");
   const [editingProduct, setEditingProduct] = useState(null);
   const [toast, setToast] = useState("");
 
-  const selectedInvoice = invoiceList.find((invoice) => invoice.id === selectedInvoiceId) || invoiceList[0];
+  const autosaveQueue = useMemo(() => createAutosaveQueue(async (invoice) => {
+    if (!orgId || !invoice) return;
+    const pricedRows = invoice.products.map(getPricedRow);
+    const invoiceTotals = getInvoiceTotals(pricedRows, invoice.payment.logs);
+    const { data, error } = await saveInvoiceWithItems(orgId, invoice, invoiceTotals);
+    if (error) {
+      showToast(`Save failed: ${error.message}`);
+      return;
+    }
+    if (data?.id && !invoice.dbId) {
+      setInvoiceList((current) => current.map((item) => (item.id === invoice.id ? { ...item, dbId: data.id } : item)));
+    }
+  }, 650), [orgId]);
+
+  const selectedInvoice = invoiceList.find((invoice) => invoice.id === selectedInvoiceId) || null;
 
   const filteredInvoices = useMemo(() => {
     return invoiceList.filter((invoice) => {
@@ -158,8 +190,79 @@ function MainApp() {
   }, [activeFilter, customRange, dateRange, invoiceList]);
 
   const visibleInvoices = filteredInvoices.slice(0, visibleCount);
-  const rows = useMemo(() => selectedInvoice.products.map(getPricedRow), [selectedInvoice.products]);
-  const totals = useMemo(() => getInvoiceTotals(rows, selectedInvoice.payment.logs), [rows, selectedInvoice.payment.logs]);
+  const rows = useMemo(() => (selectedInvoice?.products || []).map(getPricedRow), [selectedInvoice]);
+  const totals = useMemo(() => getInvoiceTotals(rows, selectedInvoice?.payment?.logs || []), [rows, selectedInvoice]);
+
+  useEffect(() => {
+    let mounted = true;
+    let channel = null;
+
+    async function loadWorkspace() {
+      setIsLoadingWorkspace(true);
+      setWorkspaceError("");
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        setWorkspaceError(sessionError.message);
+        setIsLoadingWorkspace(false);
+        return;
+      }
+
+      const user = sessionData.session?.user;
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      const profileResult = await upsertUserProfile(user);
+      if (profileResult.error) {
+        setWorkspaceError(profileResult.error.message);
+        setIsLoadingWorkspace(false);
+        return;
+      }
+
+      const workspaceResult = await bootstrapWorkspace(user);
+      if (workspaceResult.error) {
+        setWorkspaceError(workspaceResult.error.message);
+        setIsLoadingWorkspace(false);
+        return;
+      }
+
+      async function refreshWorkspace(nextOrgId) {
+        const workspaceData = await fetchInvoiceWorkspace(nextOrgId);
+        if (!mounted) return;
+        if (workspaceData.error) {
+          setWorkspaceError(workspaceData.error.message);
+          return;
+        }
+
+        const invoices = workspaceData.data.invoices.map(mapInvoiceFromDb);
+        setInvoiceList(invoices);
+        setCustomerList(workspaceData.data.customers.map(mapCustomerFromDb).filter(Boolean));
+        setProductList(workspaceData.data.products.map(mapProductFromDb).filter(Boolean));
+        setSelectedInvoiceId((current) => current && invoices.some((invoice) => invoice.id === current) ? current : invoices[0]?.id || "");
+      }
+
+      setOrgId(workspaceResult.orgId);
+      await refreshWorkspace(workspaceResult.orgId);
+      setIsLoadingWorkspace(false);
+
+      channel = supabase
+        .channel(`org-workspace-${workspaceResult.orgId}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "invoices", filter: `org_id=eq.${workspaceResult.orgId}` }, () => refreshWorkspace(workspaceResult.orgId))
+        .on("postgres_changes", { event: "*", schema: "public", table: "invoice_items", filter: `org_id=eq.${workspaceResult.orgId}` }, () => refreshWorkspace(workspaceResult.orgId))
+        .on("postgres_changes", { event: "*", schema: "public", table: "customers", filter: `org_id=eq.${workspaceResult.orgId}` }, () => refreshWorkspace(workspaceResult.orgId))
+        .on("postgres_changes", { event: "*", schema: "public", table: "products", filter: `org_id=eq.${workspaceResult.orgId}` }, () => refreshWorkspace(workspaceResult.orgId))
+        .subscribe();
+    }
+
+    loadWorkspace();
+
+    return () => {
+      mounted = false;
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [navigate]);
 
   useEffect(() => {
     setVisibleCount(10);
@@ -175,22 +278,31 @@ function MainApp() {
     if (name !== "Invoices") showToast(`${name} section coming soon`);
   }
 
-  function updateSelectedInvoice(patch) {
-    setInvoiceList((current) => current.map((invoice) => {
-      if (invoice.id !== selectedInvoice.id) return invoice;
-      const next = { ...invoice, ...patch };
-      const pricedRows = next.products.map(getPricedRow);
-      return { ...next, total: getInvoiceTotals(pricedRows, next.payment.logs).finalTotal, billingDate: next.payment.billingDate };
-    }));
+  function finalizeInvoice(invoice) {
+    const pricedRows = invoice.products.map(getPricedRow);
+    const invoiceTotals = getInvoiceTotals(pricedRows, invoice.payment.logs);
+    return { ...invoice, total: invoiceTotals.finalTotal, billingDate: invoice.payment.billingDate, days: getDaysUntilDue(invoice.payment) };
+  }
+
+  function updateSelectedInvoice(patch, options = {}) {
+    if (!selectedInvoice) return;
+    const nextInvoice = finalizeInvoice({ ...selectedInvoice, ...patch });
+    setInvoiceList((current) => current.map((invoice) => (invoice.id === selectedInvoice.id ? nextInvoice : invoice)));
+    if (options.immediate) autosaveQueue.flush();
+    autosaveQueue.schedule(nextInvoice);
   }
 
   function updatePayment(patch) {
     updateSelectedInvoice({ payment: { ...selectedInvoice.payment, ...patch } });
   }
 
-  function addInvoice() {
+  async function addInvoice() {
+    if (!orgId) {
+      showToast("Workspace is still loading");
+      return;
+    }
     const id = `INV-${new Date().getFullYear()}-${String(invoiceList.length + 1).padStart(4, "0")}`;
-    const invoice = {
+    const invoice = finalizeInvoice({
       id,
       customer: "Unknown customer",
       total: 0,
@@ -202,21 +314,34 @@ function MainApp() {
       note: "",
       delivered: false,
       payment: { type: "Spot", billingDate: todayIso(), creditDays: 0, emiMonths: 6, interestRate: 12, paid: false, nextEmiDueDate: addMonths(todayIso(), 1), closingDate: addMonths(todayIso(), 6), logs: [] },
-    };
+    });
 
-    setInvoiceList((current) => [invoice, ...current]);
+    const result = await saveInvoiceWithItems(orgId, invoice, getInvoiceTotals([], []));
+    if (result.error) {
+      showToast(`Invoice save failed: ${result.error.message}`);
+      return;
+    }
+
+    setInvoiceList((current) => [{ ...invoice, dbId: result.data.id }, ...current]);
     setSelectedInvoiceId(id);
     setActiveFilter("All");
     setDateRange("This Year");
     showToast("Blank invoice created");
   }
 
-  function deleteInvoice(id) {
+  async function deleteInvoice(id) {
     const invoice = invoiceList.find((item) => item.id === id);
     if (!window.confirm(`Delete ${invoice?.id || "this invoice"}? This action cannot be undone.`)) return;
+    if (invoice?.dbId) {
+      const result = await deleteInvoiceRecord(invoice.dbId);
+      if (result.error) {
+        showToast(`Delete failed: ${result.error.message}`);
+        return;
+      }
+    }
     setInvoiceList((current) => {
       const next = current.filter((invoice) => invoice.id !== id);
-      if (selectedInvoiceId === id && next[0]) setSelectedInvoiceId(next[0].id);
+      if (selectedInvoiceId === id) setSelectedInvoiceId(next[0]?.id || "");
       return next;
     });
   }
@@ -234,17 +359,53 @@ function MainApp() {
     setDialog("product");
   }
 
-  function saveProduct(product, index) {
+  async function saveProduct(product, index) {
+    if (!selectedInvoice || !orgId) return;
+    const productResult = await upsertProduct(orgId, product);
+    if (productResult.error) {
+      showToast(`Product save failed: ${productResult.error.message}`);
+      return;
+    }
+    const savedProduct = mapProductFromDb(productResult.data);
     const nextProducts = [...selectedInvoice.products];
-    if (Number.isInteger(index)) nextProducts[index] = product;
-    else nextProducts.push(product);
+    if (Number.isInteger(index)) nextProducts[index] = { ...savedProduct, qty: product.qty };
+    else nextProducts.push({ ...savedProduct, qty: product.qty });
+    setProductList((current) => {
+      const withoutOld = current.filter((item) => item.id !== savedProduct.id);
+      return [...withoutOld, savedProduct].sort((first, second) => first.name.localeCompare(second.name));
+    });
     updateSelectedInvoice({ products: nextProducts });
     setDialog("");
     setEditingProduct(null);
   }
 
   function deleteProduct(index) {
+    if (!selectedInvoice) return;
     updateSelectedInvoice({ products: selectedInvoice.products.filter((_, rowIndex) => rowIndex !== index) });
+  }
+
+  async function saveCustomer(customerInfo) {
+    if (!selectedInvoice || !orgId) return;
+    const customerResult = await upsertCustomer(orgId, customerInfo);
+    if (customerResult.error) {
+      showToast(`Customer save failed: ${customerResult.error.message}`);
+      return;
+    }
+    const savedCustomer = mapCustomerFromDb(customerResult.data);
+    setCustomerList((current) => {
+      const withoutOld = current.filter((item) => item.id !== savedCustomer.id);
+      return [...withoutOld, savedCustomer].sort((first, second) => first.name.localeCompare(second.name));
+    });
+    updateSelectedInvoice({ customerInfo: savedCustomer, customer: savedCustomer.name || "Unknown customer" });
+    setDialog("");
+  }
+
+  if (isLoadingWorkspace) {
+    return <main className="app-page"><section className="workspace"><div className="empty-list">Loading your workspace from Supabase...</div></section></main>;
+  }
+
+  if (workspaceError) {
+    return <main className="app-page"><section className="workspace"><div className="empty-list">Supabase error: {workspaceError}</div></section></main>;
   }
 
   return (
@@ -291,7 +452,7 @@ function MainApp() {
               {visibleInvoices.map((invoice) => (
                 <InvoiceListItem
                   invoice={invoice}
-                  isActive={selectedInvoice.id === invoice.id}
+                  isActive={selectedInvoice?.id === invoice.id}
                   key={invoice.id}
                   onDelete={deleteInvoice}
                   onSelect={setSelectedInvoiceId}
@@ -305,7 +466,7 @@ function MainApp() {
             </div>
           </aside>
 
-          <section className="invoice-detail">
+          {selectedInvoice ? <section className="invoice-detail">
             <CustomerHeader invoice={selectedInvoice} totals={totals} onEdit={() => setDialog("customer")} />
             <section className="detail-grid">
               <section className="detail-main">
@@ -318,18 +479,18 @@ function MainApp() {
                 <ActionPanel onDownload={() => showToast("Feature coming soon")} onReminder={() => showToast("Reminder feature coming soon")} onSend={() => setDialog("send")} />
               </aside>
             </section>
-          </section>
+          </section> : <section className="invoice-detail"><div className="empty-list">No invoices yet. Add your first invoice to save it in Supabase.</div></section>}
         </div>
       </section>
 
       {toast ? <div className="toast">{toast}</div> : null}
       {dialog ? (
         <Dialog title={dialogTitle(dialog)} onClose={() => setDialog("")}>
-          {dialog === "customer" ? <CustomerDialog invoice={selectedInvoice} onSave={(customerInfo) => updateSelectedInvoice({ customerInfo, customer: customerInfo.name || "Unknown customer" })} /> : null}
-          {dialog === "send" ? <SendInvoiceDialog customer={selectedInvoice.customer} /> : null}
-          {dialog === "product" && editingProduct ? <ProductDialog editingProduct={editingProduct} onSave={saveProduct} /> : null}
-          {dialog === "payment-log" ? <PaymentLogDialog payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} /> : null}
-          {dialog === "emi-plan" ? <EmiPlanDialog payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} /> : null}
+          {dialog === "customer" && selectedInvoice ? <CustomerDialog customers={customerList} invoice={selectedInvoice} onSave={saveCustomer} /> : null}
+          {dialog === "send" && selectedInvoice ? <SendInvoiceDialog customer={selectedInvoice.customer} /> : null}
+          {dialog === "product" && editingProduct ? <ProductDialog editingProduct={editingProduct} products={productList} onSave={saveProduct} /> : null}
+          {dialog === "payment-log" && selectedInvoice ? <PaymentLogDialog payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} /> : null}
+          {dialog === "emi-plan" && selectedInvoice ? <EmiPlanDialog payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} /> : null}
         </Dialog>
       ) : null}
     </main>
@@ -597,10 +758,10 @@ function ActionPanel({ onDownload, onReminder, onSend }) {
   );
 }
 
-function CustomerDialog({ invoice, onSave }) {
+function CustomerDialog({ customers: customerOptions, invoice, onSave }) {
   const [draft, setDraft] = useState(invoice.customerInfo || emptyCustomer);
   const [query, setQuery] = useState("");
-  const matches = customers.filter((customer) => `${customer.name} ${customer.contact} ${customer.email}`.toLowerCase().includes(query.toLowerCase()));
+  const matches = customerOptions.filter((customer) => `${customer.name} ${customer.contact} ${customer.email}`.toLowerCase().includes(query.toLowerCase()));
 
   function update(key, value) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -621,7 +782,7 @@ function CustomerDialog({ invoice, onSave }) {
         <div className="search-field"><Search size={16} /><input placeholder="Search existing customers" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
         <div className="picker-results">
           {matches.map((customer) => (
-            <button key={customer.email} onClick={() => setDraft(customer)} type="button">
+            <button key={customer.id || customer.email} onClick={() => setDraft(customer)} type="button">
               <strong>{customer.name}</strong>
               <span>{customer.contact}</span>
               <small>{customer.email}</small>
@@ -633,10 +794,10 @@ function CustomerDialog({ invoice, onSave }) {
   );
 }
 
-function ProductDialog({ editingProduct, onSave }) {
+function ProductDialog({ editingProduct, products, onSave }) {
   const [draft, setDraft] = useState(editingProduct.product);
   const [query, setQuery] = useState("");
-  const matches = productCatalog.filter((product) => `${product.pid} ${product.name} ${product.hsn}`.toLowerCase().includes(query.toLowerCase()));
+  const matches = products.filter((product) => `${product.pid} ${product.name} ${product.hsn}`.toLowerCase().includes(query.toLowerCase()));
 
   function update(key, value) {
     setDraft((current) => ({ ...current, [key]: ["cost", "shownDiscount", "unit", "extraDiscount", "qty", "gst"].includes(key) ? Number(value) : value }));
@@ -662,7 +823,7 @@ function ProductDialog({ editingProduct, onSave }) {
         <div className="search-field"><Search size={16} /><input placeholder="Search existing products" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
         <div className="picker-results">
           {matches.map((product) => (
-            <button key={product.pid} onClick={() => setDraft(product)} type="button">
+            <button key={product.id || product.pid} onClick={() => setDraft(product)} type="button">
               <strong>{product.name}</strong>
               <span>{product.pid} - HSN {product.hsn}</span>
               <small>{formatMoney(product.unit)}</small>
