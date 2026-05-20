@@ -14,6 +14,7 @@ import {
   Mail,
   MessageSquare,
   Plus,
+  Save,
   Search,
   Send,
   Settings,
@@ -33,24 +34,36 @@ import {
 } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
-import { supabase, upsertUserProfile } from "./supabaseClient";
+import { getAuthRedirectUrl, supabase, upsertUserProfile } from "./supabaseClient";
 
-const invoices = [
+const baseInvoices = [
   { id: "INV-2026-0148", customer: "Aarav Auto Distributors", total: 182450, status: "Pending Payment", days: 6, billingDate: "2026-05-14" },
   { id: "INV-2026-0147", customer: "Northline Motors", total: 94780, status: "Pending Delivery", days: 13, billingDate: "2026-05-12" },
   { id: "INV-2026-0142", customer: "Mehra Fleet Works", total: 236100, status: "Past Due Date", days: -3, billingDate: "2026-04-28" },
   { id: "INV-2026-0139", customer: "Velocity Parts Co.", total: 68720, status: "Raised Issues", days: 2, billingDate: "2026-05-08" },
+  { id: "INV-2026-0138", customer: "Kinetic Motors", total: 146300, status: "Pending Payment", days: 8, billingDate: "2026-05-03" },
+  { id: "INV-2026-0135", customer: "Roadline Spares", total: 58120, status: "Pending Delivery", days: 17, billingDate: "2026-04-25" },
+  { id: "INV-2026-0131", customer: "Eastern Fleet Hub", total: 304880, status: "Pending Payment", days: 22, billingDate: "2026-04-19" },
+  { id: "INV-2026-0129", customer: "Blueway Logistics", total: 119400, status: "Past Due Date", days: -11, billingDate: "2026-03-30" },
+  { id: "INV-2026-0126", customer: "Prime Axle Works", total: 77500, status: "Pending Delivery", days: 31, billingDate: "2026-03-18" },
+  { id: "INV-2026-0122", customer: "Sunrise Dealership", total: 99580, status: "Raised Issues", days: 5, billingDate: "2026-03-09" },
+  { id: "INV-2026-0119", customer: "Metro Auto Parts", total: 212900, status: "Pending Payment", days: 44, billingDate: "2026-02-26" },
+  { id: "INV-2026-0115", customer: "Harbor Motors", total: 54200, status: "Pending Delivery", days: 49, billingDate: "2026-02-13" },
+  { id: "INV-2025-0101", customer: "Apex Fleet East", total: 187600, status: "Pending Payment", days: 61, billingDate: "2025-12-18" },
 ];
 
-const products = [
+const productCatalog = [
   { pid: "PRD-401", hsn: "8708", name: "Brake caliper assembly", desc: "Front axle compatible, dealership grade", cost: 4200, margin: "22%", shownDiscount: 380, unit: 5005, extraDiscount: 150, qty: 12, gst: 18 },
   { pid: "PRD-226", hsn: "8507", name: "Battery pack 12V", desc: "Sealed maintenance-free unit", cost: 6900, margin: "1400", shownDiscount: 600, unit: 8900, extraDiscount: 250, qty: 8, gst: 28 },
   { pid: "PRD-118", hsn: "4011", name: "Commercial tyre set", desc: "High-load tread, highway use", cost: 11800, margin: "18%", shownDiscount: 900, unit: 14824, extraDiscount: 400, qty: 6, gst: 18 },
+  { pid: "PRD-502", hsn: "8708", name: "Clutch plate kit", desc: "Heavy duty kit for commercial vehicles", cost: 5300, margin: "24%", shownDiscount: 420, unit: 6972, extraDiscount: 180, qty: 4, gst: 18 },
 ];
 
-const paymentLog = [
-  { amount: 42000, date: "2026-05-15", mode: "UPI", note: "Advance paid" },
-  { amount: 25000, date: "2026-05-18", mode: "Bank transfer", note: "Second partial payment" },
+const customers = [
+  { name: "Apex Auto Dealership", contact: "Aarav Auto Distributors", address: "17 Industrial Estate, Pune", gstin: "27AAPCA1849M1Z8", email: "billing@apexauto.in", phone: "+91 98765 43210" },
+  { name: "Northline Motors", contact: "Riya Sharma", address: "Plot 22, MIDC, Nashik", gstin: "27AAFCN2231L1Z7", email: "accounts@northline.in", phone: "+91 91234 56780" },
+  { name: "Mehra Fleet Works", contact: "Kabir Mehra", address: "Ring Road Depot, Jaipur", gstin: "08AAMFM9981K1Z1", email: "finance@mehrafleet.in", phone: "+91 99887 77665" },
+  { name: "Velocity Parts Co.", contact: "Tanvi Rao", address: "Sector 8 Warehouse, Noida", gstin: "09AAVPV7712Q1Z3", email: "billing@velocityparts.in", phone: "+91 88990 11223" },
 ];
 
 const navItems = [
@@ -65,6 +78,29 @@ const navItems = [
 ];
 
 const filters = ["All", "Pending Payment", "Past Due Date", "Pending Delivery", "Raised Issues"];
+const dateRanges = ["Today", "This Week", "This Month", "This Year", "Select Year"];
+const emptyCustomer = { name: "Unknown customer", contact: "", address: "", gstin: "", email: "", phone: "" };
+const emptyProduct = { pid: "", hsn: "", name: "", desc: "", cost: 0, margin: "", shownDiscount: 0, unit: 0, extraDiscount: 0, qty: 1, gst: 18 };
+
+function makeInvoice(invoice, index) {
+  const customerInfo = customers.find((item) => invoice.customer.includes(item.contact) || invoice.customer === item.name) || customers[index % customers.length];
+
+  return {
+    ...invoice,
+    customerInfo,
+    products: productCatalog.slice(0, 3).map((item) => ({ ...item })),
+    payment: {
+      type: index % 3 === 1 ? "Pay Later" : index % 3 === 2 ? "EMI" : "Spot",
+      billingDate: invoice.billingDate,
+      creditDays: 20,
+      nextEmiDueDate: "2026-06-14",
+      logs: [
+        { amount: Math.round(invoice.total * 0.25), date: invoice.billingDate, mode: "UPI", note: "Advance paid" },
+        { amount: Math.round(invoice.total * 0.15), date: "2026-05-18", mode: "Bank transfer", note: "Partial payment" },
+      ],
+    },
+  };
+}
 
 function App() {
   useEffect(() => {
@@ -95,29 +131,31 @@ function App() {
 function MainApp() {
   const [activeMenu, setActiveMenu] = useState("Invoices");
   const [activeFilter, setActiveFilter] = useState("All");
-  const [selectedInvoice, setSelectedInvoice] = useState(invoices[0]);
-  const [paymentType, setPaymentType] = useState("Spot");
-  const [paymentDone, setPaymentDone] = useState(false);
+  const [dateRange, setDateRange] = useState("This Month");
+  const [selectedYear, setSelectedYear] = useState("2026");
+  const [visibleCount, setVisibleCount] = useState(10);
+  const [invoiceList, setInvoiceList] = useState(() => baseInvoices.map(makeInvoice));
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("INV-2026-0148");
   const [dialog, setDialog] = useState("");
+  const [editingProduct, setEditingProduct] = useState(null);
   const [toast, setToast] = useState("");
 
-  const visibleInvoices = useMemo(() => {
-    return activeFilter === "All" ? invoices : invoices.filter((invoice) => invoice.status === activeFilter);
-  }, [activeFilter]);
+  const selectedInvoice = invoiceList.find((invoice) => invoice.id === selectedInvoiceId) || invoiceList[0];
 
-  const rows = products.map((item) => {
-    const markedPrice = Math.round((item.unit - item.extraDiscount) * (1 + item.gst / 100));
-    return { ...item, markedPrice, total: markedPrice * item.qty };
-  });
-  const subtotal = rows.reduce((sum, item) => sum + item.unit * item.qty, 0);
-  const tax = rows.reduce((sum, item) => sum + (item.unit - item.extraDiscount) * item.qty * (item.gst / 100), 0);
-  const freight = 2400;
-  const other = 850;
-  const rawTotal = subtotal + tax + freight + other;
-  const finalTotal = Math.round(rawTotal);
-  const roundOff = finalTotal - rawTotal;
-  const paid = paymentLog.reduce((sum, item) => sum + item.amount, 0);
-  const balance = finalTotal - paid;
+  const filteredInvoices = useMemo(() => {
+    return invoiceList.filter((invoice) => {
+      const matchesStatus = activeFilter === "All" || invoice.status === activeFilter;
+      return matchesStatus && isInDateRange(invoice.billingDate, dateRange, selectedYear);
+    });
+  }, [activeFilter, dateRange, invoiceList, selectedYear]);
+
+  const visibleInvoices = filteredInvoices.slice(0, visibleCount);
+  const rows = useMemo(() => selectedInvoice.products.map(getPricedRow), [selectedInvoice.products]);
+  const totals = useMemo(() => getInvoiceTotals(rows, selectedInvoice.payment.logs), [rows, selectedInvoice.payment.logs]);
+
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [activeFilter, dateRange, selectedYear]);
 
   function showToast(message) {
     setToast(message);
@@ -127,6 +165,74 @@ function MainApp() {
   function handleMenuClick(name) {
     setActiveMenu(name);
     if (name !== "Invoices") showToast(`${name} section coming soon`);
+  }
+
+  function updateSelectedInvoice(patch) {
+    setInvoiceList((current) => current.map((invoice) => {
+      if (invoice.id !== selectedInvoice.id) return invoice;
+      const next = { ...invoice, ...patch };
+      const pricedRows = next.products.map(getPricedRow);
+      return { ...next, total: getInvoiceTotals(pricedRows, next.payment.logs).finalTotal, billingDate: next.payment.billingDate };
+    }));
+  }
+
+  function updatePayment(patch) {
+    updateSelectedInvoice({ payment: { ...selectedInvoice.payment, ...patch } });
+  }
+
+  function addInvoice() {
+    const id = `INV-${new Date().getFullYear()}-${String(invoiceList.length + 1).padStart(4, "0")}`;
+    const invoice = {
+      id,
+      customer: "Unknown customer",
+      total: 0,
+      status: "Pending Payment",
+      days: 0,
+      billingDate: todayIso(),
+      customerInfo: { ...emptyCustomer },
+      products: [],
+      payment: { type: "Spot", billingDate: todayIso(), creditDays: 0, nextEmiDueDate: todayIso(), logs: [] },
+    };
+
+    setInvoiceList((current) => [invoice, ...current]);
+    setSelectedInvoiceId(id);
+    setActiveFilter("All");
+    setDateRange("This Year");
+    showToast("Blank invoice created");
+  }
+
+  function deleteInvoice(id) {
+    setInvoiceList((current) => {
+      const next = current.filter((invoice) => invoice.id !== id);
+      if (selectedInvoiceId === id && next[0]) setSelectedInvoiceId(next[0].id);
+      return next;
+    });
+  }
+
+  function handleInvoiceScroll(event) {
+    const node = event.currentTarget;
+    const nearBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 24;
+    if (nearBottom && visibleCount < filteredInvoices.length) {
+      setVisibleCount((count) => Math.min(count + 10, filteredInvoices.length));
+    }
+  }
+
+  function openProductDialog(product, index) {
+    setEditingProduct({ product: product ? { ...product } : { ...emptyProduct }, index });
+    setDialog("product");
+  }
+
+  function saveProduct(product, index) {
+    const nextProducts = [...selectedInvoice.products];
+    if (Number.isInteger(index)) nextProducts[index] = product;
+    else nextProducts.push(product);
+    updateSelectedInvoice({ products: nextProducts });
+    setDialog("");
+    setEditingProduct(null);
+  }
+
+  function deleteProduct(index) {
+    updateSelectedInvoice({ products: selectedInvoice.products.filter((_, rowIndex) => rowIndex !== index) });
   }
 
   return (
@@ -163,43 +269,39 @@ function MainApp() {
 
         <div className="invoice-layout">
           <aside className="invoice-list-panel">
-            <div className="list-tools">
-              <div className="search-field"><Search size={16} /><input placeholder="Search invoices" /></div>
-              <select aria-label="Sort invoices">
-                <option>Sort: Client name</option>
-                <option>Sort: Payment value</option>
-                <option>Sort: Days remaining</option>
-              </select>
-            </div>
+            <InvoiceListTools dateRange={dateRange} setDateRange={setDateRange} selectedYear={selectedYear} setSelectedYear={setSelectedYear} />
             <div className="filter-tabs" aria-label="Invoice filters">
               {filters.map((filter) => (
                 <button className={activeFilter === filter ? "active" : ""} key={filter} onClick={() => setActiveFilter(filter)} type="button">{filter}</button>
               ))}
             </div>
-            <div className="invoice-list">
+            <div className="invoice-list" onScroll={handleInvoiceScroll}>
               {visibleInvoices.map((invoice) => (
-                <button className={`invoice-list-item ${selectedInvoice.id === invoice.id ? "active" : ""}`} key={invoice.id} onClick={() => setSelectedInvoice(invoice)} type="button">
-                  <span><strong>{invoice.id}</strong><small>{invoice.customer}</small></span>
-                  <span className="invoice-item-meta">
-                    <b>{formatMoney(invoice.total)}</b>
-                    <StatusBadge status={invoice.status} />
-                    <DaysBadge days={invoice.days} compact />
-                  </span>
-                </button>
+                <InvoiceListItem
+                  invoice={invoice}
+                  isActive={selectedInvoice.id === invoice.id}
+                  key={invoice.id}
+                  onDelete={deleteInvoice}
+                  onSelect={setSelectedInvoiceId}
+                />
               ))}
+              {visibleInvoices.length < filteredInvoices.length ? <div className="loading-row">Scroll for more invoices</div> : null}
+              {!filteredInvoices.length ? <div className="empty-list">No invoices in this date range</div> : null}
             </div>
-            <Button className="add-invoice-button" onClick={() => showToast("Add invoice flow coming soon")}><Plus size={18} />Add Invoice</Button>
+            <div className="invoice-list-footer">
+              <Button className="add-invoice-button" onClick={addInvoice}><Plus size={18} />Add Invoice</Button>
+            </div>
           </aside>
 
           <section className="invoice-detail">
-            <CustomerHeader invoice={selectedInvoice} />
+            <CustomerHeader invoice={selectedInvoice} onEdit={() => setDialog("customer")} />
             <section className="detail-grid">
               <section className="detail-main">
-                <ProductTable rows={rows} onAction={() => setDialog("product")} />
+                <ProductTable rows={rows} onAdd={() => openProductDialog(null, null)} onDelete={deleteProduct} onEdit={openProductDialog} />
               </section>
               <aside className="detail-side">
-                <PaymentCard paymentDone={paymentDone} paymentType={paymentType} setPaymentDone={setPaymentDone} setPaymentType={setPaymentType} days={selectedInvoice.days} onLog={() => setDialog("payment")} />
-                <MoneySummary subtotal={subtotal} tax={tax} freight={freight} other={other} roundOff={roundOff} finalTotal={finalTotal} paid={paid} balance={balance} />
+                <PaymentCard payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} />
+                <MoneySummary totals={totals} />
                 <ActionPanel onDownload={() => showToast("Feature coming soon")} onReminder={() => showToast("Reminder feature coming soon")} onSend={() => setDialog("send")} />
               </aside>
             </section>
@@ -210,85 +312,165 @@ function MainApp() {
       {toast ? <div className="toast">{toast}</div> : null}
       {dialog ? (
         <Dialog title={dialogTitle(dialog)} onClose={() => setDialog("")}>
-          {dialog === "payment" ? <PaymentLog finalTotal={finalTotal} paid={paid} balance={balance} /> : null}
+          {dialog === "customer" ? <CustomerDialog invoice={selectedInvoice} onSave={(customerInfo) => updateSelectedInvoice({ customerInfo, customer: customerInfo.name || "Unknown customer" })} /> : null}
           {dialog === "send" ? <SendInvoiceDialog customer={selectedInvoice.customer} /> : null}
-          {dialog === "product" ? <ProductEditDialog /> : null}
+          {dialog === "product" && editingProduct ? <ProductDialog editingProduct={editingProduct} onSave={saveProduct} /> : null}
         </Dialog>
       ) : null}
     </main>
   );
 }
 
-function CustomerHeader({ invoice }) {
+function InvoiceListTools({ dateRange, setDateRange, selectedYear, setSelectedYear }) {
+  return (
+    <div className="list-tools">
+      <div className="search-field"><Search size={16} /><input placeholder="Search invoices" /></div>
+      <label className="select-field">
+        <span>Date range</span>
+        <select aria-label="Date range" value={dateRange} onChange={(event) => setDateRange(event.target.value)}>
+          {dateRanges.map((range) => <option key={range}>{range}</option>)}
+        </select>
+      </label>
+      {dateRange === "Select Year" ? (
+        <label className="select-field">
+          <span>Year</span>
+          <input min="2020" type="number" value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)} />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+function InvoiceListItem({ invoice, isActive, onDelete, onSelect }) {
+  return (
+    <button className={`invoice-list-item ${isActive ? "active" : ""}`} onClick={() => onSelect(invoice.id)} type="button">
+      <span><strong>{invoice.id}</strong><small>{invoice.customer}</small></span>
+      <span className="invoice-item-meta">
+        <b>{formatMoney(invoice.total)}</b>
+        <StatusBadge status={invoice.status} />
+        <DaysBadge days={invoice.days} compact />
+      </span>
+      <span className="invoice-date">{invoice.billingDate}</span>
+      <span className="invoice-delete" onClick={(event) => { event.stopPropagation(); onDelete(invoice.id); }} role="button" tabIndex={0}><Trash2 size={15} /></span>
+    </button>
+  );
+}
+
+function CustomerHeader({ invoice, onEdit }) {
+  const customer = invoice.customerInfo || emptyCustomer;
+
   return (
     <section className="customer-header">
-      <div className="company-avatar">DP</div>
+      <div className="company-avatar">{getInitials(customer.name)}</div>
       <div className="customer-copy">
-        <p>Company profile</p>
-        <h2>Apex Auto Dealership</h2>
+        <p>Customer information</p>
+        <h2>{customer.name || "Unknown customer"}</h2>
         <div className="customer-meta">
-          <span>{invoice.customer}</span><span>17 Industrial Estate, Pune</span><span>GSTIN 27AAPCA1849M1Z8</span><span>billing@apexauto.in</span><span>+91 98765 43210</span>
+          <span>{customer.contact || "No contact selected"}</span><span>{customer.address || "No address"}</span><span>{customer.gstin || "No GSTIN"}</span><span>{customer.email || "No email"}</span><span>{customer.phone || "No phone"}</span>
         </div>
       </div>
       <div className="invoice-identity">
         <Label>Invoice number</Label>
-        <strong>{invoice.id}</strong>
+        <input readOnly value={invoice.id} />
         <small>Billing date: {invoice.billingDate}</small>
+        <Button className="secondary-action" onClick={onEdit} type="button"><Edit3 size={16} />Edit customer</Button>
       </div>
     </section>
   );
 }
 
-function ProductTable({ rows, onAction }) {
+function ProductTable({ rows, onAdd, onDelete, onEdit }) {
   return (
     <section className="product-card">
       <div className="section-heading">
         <div><p>Product table</p><h3>Line items</h3></div>
-        <Button type="button" onClick={onAction}><Plus size={17} />Add Product</Button>
+        <Button type="button" onClick={onAdd}><Plus size={17} />Add Product</Button>
       </div>
       <div className="table-scroll">
         <table>
           <thead><tr>{["PID", "HSN Code", "Name & Description", "Cost Price", "Profit Margin", "Shown Discount", "Unit Price", "Extra Discount", "QTY", "GST %", "Marked Price", "Total Price", "Actions"].map((head) => <th key={head}>{head}</th>)}</tr></thead>
           <tbody>
-            {rows.map((item) => (
-              <tr key={item.pid}>
-                <td>{item.pid}</td><td>{item.hsn}</td><td><strong>{item.name}</strong><small>{item.desc}</small></td><td>{formatMoney(item.cost)}</td><td>{item.margin}</td><td>{formatMoney(item.shownDiscount)}</td><td>{formatMoney(item.unit)}</td><td>{formatMoney(item.extraDiscount)}</td><td>{item.qty}</td><td>{item.gst}%</td><td>{formatMoney(item.markedPrice)}</td><td>{formatMoney(item.total)}</td>
-                <td><div className="row-actions"><button type="button" onClick={onAction} aria-label="Edit product"><Edit3 size={15} /></button><button type="button" onClick={onAction} aria-label="Delete product"><Trash2 size={15} /></button></div></td>
+            {rows.map((item, index) => (
+              <tr key={`${item.pid}-${index}`}>
+                <td>{item.pid || "-"}</td><td>{item.hsn || "-"}</td><td><strong>{item.name || "Untitled product"}</strong><small>{item.desc || "No description"}</small></td><td>{formatMoney(item.cost)}</td><td>{item.margin || "-"}</td><td>{formatMoney(item.shownDiscount)}</td><td>{formatMoney(item.unit)}</td><td>{formatMoney(item.extraDiscount)}</td><td>{item.qty}</td><td>{item.gst}%</td><td>{formatMoney(item.markedPrice)}</td><td>{formatMoney(item.total)}</td>
+                <td><div className="row-actions"><button type="button" onClick={() => onEdit(item, index)} aria-label="Edit product"><Edit3 size={15} /></button><button type="button" onClick={() => onDelete(index)} aria-label="Delete product"><Trash2 size={15} /></button></div></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {!rows.length ? <p className="muted-copy">No products added yet.</p> : null}
       <label className="delivered-check"><input type="checkbox" /><span>Delivered</span></label>
     </section>
   );
 }
 
-function PaymentCard({ paymentDone, paymentType, setPaymentDone, setPaymentType, days, onLog }) {
-  const closureDate = "2026-06-03";
+function PaymentCard({ payment, totals, updatePayment }) {
+  const closureDate = addDays(payment.billingDate, Number(payment.creditDays || 0));
+
   return (
     <section className="side-card">
-      <div className="section-heading compact"><div><p>Payment</p><h3>Terms</h3></div><DaysBadge days={days} /></div>
-      <label className="check-row"><input checked={paymentDone} onChange={(event) => setPaymentDone(event.target.checked)} type="checkbox" /><span>Payment done</span></label>
-      <div className="segment-control" aria-label="Payment type">
-        {["Spot", "EMI", "Pay Later"].map((type) => <button className={paymentType === type ? "active" : ""} key={type} onClick={() => setPaymentType(type)} type="button">{type}</button>)}
+      <div className="section-heading compact"><div><p>Payment</p><h3>Terms</h3></div></div>
+      <label className="select-field full">
+        <span>Payment type</span>
+        <select value={payment.type} onChange={(event) => updatePayment({ type: event.target.value })}>
+          <option>Spot</option>
+          <option>EMI</option>
+          <option>Pay Later</option>
+        </select>
+      </label>
+      <div className="conditional-grid one-column">
+        <label className="mini-field"><span>Billing date</span><input type="date" value={payment.billingDate} onChange={(event) => updatePayment({ billingDate: event.target.value })} /></label>
+        {payment.type === "Pay Later" ? <label className="mini-field"><span>Credit days</span><input min="0" type="number" value={payment.creditDays} onChange={(event) => updatePayment({ creditDays: event.target.value })} /></label> : null}
+        {payment.type === "Pay Later" ? <div className="readonly-field"><Label>Closure date</Label><input readOnly value={closureDate} /></div> : null}
+        {payment.type === "EMI" ? <label className="mini-field"><span>Next EMI due date</span><input type="date" value={payment.nextEmiDueDate} onChange={(event) => updatePayment({ nextEmiDueDate: event.target.value })} /></label> : null}
       </div>
-      {paymentType === "EMI" ? <div className="conditional-grid"><Field label="Interest rate" value="12%" /><Field label="Installments" value="6" /><Field label="Next date" value="2026-06-14" /></div> : null}
-      {paymentType === "Pay Later" ? <div className="conditional-grid"><Field label="Penalty rate" value="2.5%" /><Field label="Kicks in after" value={closureDate} /></div> : null}
-      <div className="date-grid"><Field label="Billing date" value="2026-05-14" /><Field label="Credit days" value="20" /><div className="readonly-field"><Label>Closure date</Label><strong>{closureDate}</strong></div></div>
-      <Button className="secondary-action" onClick={onLog} type="button"><WalletCards size={17} />Show payment log</Button>
-      <label className="notes-field"><span>Payment notes</span><textarea defaultValue="Client prefers bank transfer for balance settlement." /></label>
+      <PaymentLogEditor payment={payment} totals={totals} updatePayment={updatePayment} />
     </section>
   );
 }
 
-function MoneySummary({ subtotal, tax, freight, other, roundOff, finalTotal, paid, balance }) {
+function PaymentLogEditor({ payment, totals, updatePayment }) {
+  const heading = payment.type === "EMI" ? "EMI payments" : payment.type === "Pay Later" ? "Pay later ledger" : "Spot payment";
+
+  function updateLog(index, key, value) {
+    const logs = payment.logs.map((item, rowIndex) => (rowIndex === index ? { ...item, [key]: key === "amount" ? Number(value) : value } : item));
+    updatePayment({ logs });
+  }
+
+  function addLog() {
+    updatePayment({ logs: [...payment.logs, { amount: 0, date: todayIso(), mode: payment.type === "EMI" ? "EMI" : "UPI", note: "" }] });
+  }
+
+  return (
+    <div className="payment-log-editor">
+      <div className="section-heading compact"><div><p>Payment log</p><h3>{heading}</h3></div><Button className="mini-button" onClick={addLog} type="button"><Plus size={15} />Add</Button></div>
+      <div className="payment-log-form">
+        {payment.logs.map((item, index) => (
+          <div className="payment-log-edit-row" key={`${item.date}-${index}`}>
+            <label><span>Amount</span><input type="number" value={item.amount} onChange={(event) => updateLog(index, "amount", event.target.value)} /></label>
+            <label><span>Date</span><input type="date" value={item.date} onChange={(event) => updateLog(index, "date", event.target.value)} /></label>
+            <label><span>Mode</span><input value={item.mode} onChange={(event) => updateLog(index, "mode", event.target.value)} /></label>
+            <label><span>Note</span><input value={item.note} onChange={(event) => updateLog(index, "note", event.target.value)} /></label>
+          </div>
+        ))}
+      </div>
+      <div className="payment-context">
+        {payment.type === "Spot" ? <OutputField label="Spot balance" value={formatMoney(totals.balance)} /> : null}
+        {payment.type === "EMI" ? <OutputField label="Next due" value={payment.nextEmiDueDate} /> : null}
+        {payment.type === "Pay Later" ? <OutputField label="Credit balance" value={formatMoney(totals.balance)} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function MoneySummary({ totals }) {
   return (
     <section className="side-card money-card">
       <div className="section-heading compact"><div><p>Money summary</p><h3>Total</h3></div></div>
-      <SummaryRow label="Subtotal" value={formatMoney(subtotal)} /><SummaryRow label="Total tax" value={formatMoney(tax)} /><SummaryRow label="Freight charges" value={formatMoney(freight)} editable /><SummaryRow label="Other charges" value={formatMoney(other)} editable /><SummaryRow label="Round off" value={roundOff.toFixed(2)} />
-      <div className="final-total"><span>Final Total</span><strong>{formatMoney(finalTotal)}</strong></div>
-      <SummaryRow label="Previously paid" value={formatMoney(paid)} /><SummaryRow label="Balance due" value={formatMoney(balance)} strong />
+      <SummaryRow label="Subtotal" value={formatMoney(totals.subtotal)} /><SummaryRow label="Total tax" value={formatMoney(totals.tax)} /><SummaryRow label="Freight charges" value={formatMoney(totals.freight)} /><SummaryRow label="Other charges" value={formatMoney(totals.other)} /><SummaryRow label="Round off" value={totals.roundOff.toFixed(2)} />
+      <div className="final-total"><span>Final Total</span><input readOnly value={formatMoney(totals.finalTotal)} /></div>
+      <SummaryRow label="Previously paid" value={formatMoney(totals.paid)} /><SummaryRow label="Balance due" value={formatMoney(totals.balance)} strong />
     </section>
   );
 }
@@ -303,28 +485,101 @@ function ActionPanel({ onDownload, onReminder, onSend }) {
   );
 }
 
-function Dialog({ title, children, onClose }) {
-  return <div className="dialog-backdrop" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-card"><div className="dialog-header"><h3>{title}</h3><button onClick={onClose} type="button">Close</button></div>{children}</div></div>;
+function CustomerDialog({ invoice, onSave }) {
+  const [draft, setDraft] = useState(invoice.customerInfo || emptyCustomer);
+  const [query, setQuery] = useState("");
+  const matches = customers.filter((customer) => `${customer.name} ${customer.contact} ${customer.email}`.toLowerCase().includes(query.toLowerCase()));
+
+  function update(key, value) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  return (
+    <div className="picker-dialog">
+      <section className="picker-editor">
+        <EditableField label="Company name" value={draft.name} onChange={(value) => update("name", value)} />
+        <EditableField label="Contact person" value={draft.contact} onChange={(value) => update("contact", value)} />
+        <EditableField label="Address" value={draft.address} onChange={(value) => update("address", value)} />
+        <EditableField label="GSTIN" value={draft.gstin} onChange={(value) => update("gstin", value)} />
+        <EditableField label="Email" value={draft.email} onChange={(value) => update("email", value)} />
+        <EditableField label="Phone" value={draft.phone} onChange={(value) => update("phone", value)} />
+        <Button type="button" onClick={() => onSave(draft)}><Save size={17} />Save Customer</Button>
+      </section>
+      <section className="picker-search">
+        <div className="search-field"><Search size={16} /><input placeholder="Search existing customers" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+        <div className="picker-results">
+          {matches.map((customer) => (
+            <button key={customer.email} onClick={() => setDraft(customer)} type="button">
+              <strong>{customer.name}</strong>
+              <span>{customer.contact}</span>
+              <small>{customer.email}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 }
 
-function PaymentLog({ finalTotal, paid, balance }) {
-  return <div className="dialog-content"><div className="payment-log-list">{paymentLog.map((item) => <div className="payment-log-item" key={`${item.date}-${item.amount}`}><strong>{formatMoney(item.amount)}</strong><span>{item.date} - {item.mode}</span><small>{item.note}</small></div>)}</div><div className="payment-totals"><SummaryRow label="Final total" value={formatMoney(finalTotal)} /><SummaryRow label="Total paid" value={formatMoney(paid)} /><SummaryRow label="Remaining balance" value={formatMoney(balance)} strong /></div><Button type="button"><Plus size={17} />Log Payment</Button></div>;
+function ProductDialog({ editingProduct, onSave }) {
+  const [draft, setDraft] = useState(editingProduct.product);
+  const [query, setQuery] = useState("");
+  const matches = productCatalog.filter((product) => `${product.pid} ${product.name} ${product.hsn}`.toLowerCase().includes(query.toLowerCase()));
+
+  function update(key, value) {
+    setDraft((current) => ({ ...current, [key]: ["cost", "shownDiscount", "unit", "extraDiscount", "qty", "gst"].includes(key) ? Number(value) : value }));
+  }
+
+  return (
+    <div className="picker-dialog">
+      <section className="picker-editor">
+        <EditableField label="PID" value={draft.pid} onChange={(value) => update("pid", value)} />
+        <EditableField label="HSN Code" value={draft.hsn} onChange={(value) => update("hsn", value)} />
+        <EditableField label="Name" value={draft.name} onChange={(value) => update("name", value)} />
+        <EditableField label="Description" value={draft.desc} onChange={(value) => update("desc", value)} />
+        <EditableField label="Cost price" type="number" value={draft.cost} onChange={(value) => update("cost", value)} />
+        <EditableField label="Profit margin" value={draft.margin} onChange={(value) => update("margin", value)} />
+        <EditableField label="Shown discount" type="number" value={draft.shownDiscount} onChange={(value) => update("shownDiscount", value)} />
+        <EditableField label="Unit price" type="number" value={draft.unit} onChange={(value) => update("unit", value)} />
+        <EditableField label="Extra discount" type="number" value={draft.extraDiscount} onChange={(value) => update("extraDiscount", value)} />
+        <EditableField label="Quantity" type="number" value={draft.qty} onChange={(value) => update("qty", value)} />
+        <EditableField label="GST %" type="number" value={draft.gst} onChange={(value) => update("gst", value)} />
+        <Button type="button" onClick={() => onSave(draft, editingProduct.index)}><Check size={17} />Save Product</Button>
+      </section>
+      <section className="picker-search">
+        <div className="search-field"><Search size={16} /><input placeholder="Search existing products" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+        <div className="picker-results">
+          {matches.map((product) => (
+            <button key={product.pid} onClick={() => setDraft(product)} type="button">
+              <strong>{product.name}</strong>
+              <span>{product.pid} - HSN {product.hsn}</span>
+              <small>{formatMoney(product.unit)}</small>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Dialog({ title, children, onClose }) {
+  return <div className="dialog-backdrop" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-card wide"><div className="dialog-header"><h3>{title}</h3><button onClick={onClose} type="button">Close</button></div>{children}</div></div>;
 }
 
 function SendInvoiceDialog({ customer }) {
-  return <div className="dialog-content"><Field label="Recipient" value="billing@client.example" /><Field label="Subject" value={`Invoice for ${customer}`} /><label className="notes-field"><span>Body</span><textarea defaultValue="Hello, please find the invoice attached for your review." /></label><Button type="button"><Send size={17} />Send via Gmail SMTP</Button></div>;
+  return <div className="dialog-content"><EditableField label="Recipient" value="billing@client.example" onChange={() => {}} /><EditableField label="Subject" value={`Invoice for ${customer}`} onChange={() => {}} /><label className="notes-field"><span>Body</span><textarea defaultValue="Hello, please find the invoice attached for your review." /></label><Button type="button"><Send size={17} />Send via Gmail SMTP</Button></div>;
 }
 
-function ProductEditDialog() {
-  return <div className="dialog-content"><p className="muted-copy">Product picker and row edit actions will connect to inventory later.</p><Button type="button"><Check size={17} />Keep dummy row</Button></div>;
+function EditableField({ label, value, onChange, type = "text" }) {
+  return <label className="mini-field"><span>{label}</span><input type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
-function Field({ label, value }) {
-  return <label className="mini-field"><span>{label}</span><input defaultValue={value} /></label>;
+function OutputField({ label, value }) {
+  return <div className="readonly-field"><Label>{label}</Label><input readOnly value={value} /></div>;
 }
 
-function SummaryRow({ label, value, editable, strong }) {
-  return <div className={`summary-row ${strong ? "strong" : ""}`}><span>{label}</span>{editable ? <input defaultValue={value} /> : <strong>{value}</strong>}</div>;
+function SummaryRow({ label, value, strong }) {
+  return <div className={`summary-row ${strong ? "strong" : ""}`}><span>{label}</span><input readOnly value={value} /></div>;
 }
 
 function StatusBadge({ status }) {
@@ -337,13 +592,58 @@ function DaysBadge({ days, compact }) {
 }
 
 function dialogTitle(dialog) {
-  if (dialog === "payment") return "Partial Payment Tracker";
+  if (dialog === "customer") return "Customer information";
   if (dialog === "send") return "Send Invoice";
-  return "Product action";
+  return "Product information";
+}
+
+function getPricedRow(item) {
+  const markedPrice = Math.round((Number(item.unit) - Number(item.extraDiscount)) * (1 + Number(item.gst) / 100));
+  return { ...item, markedPrice, total: markedPrice * Number(item.qty) };
+}
+
+function getInvoiceTotals(rows, logs) {
+  const subtotal = rows.reduce((sum, item) => sum + Number(item.unit) * Number(item.qty), 0);
+  const tax = rows.reduce((sum, item) => sum + (Number(item.unit) - Number(item.extraDiscount)) * Number(item.qty) * (Number(item.gst) / 100), 0);
+  const freight = 2400;
+  const other = 850;
+  const rawTotal = subtotal + tax + freight + other;
+  const finalTotal = Math.round(rawTotal);
+  const paid = logs.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  return { subtotal, tax, freight, other, rawTotal, finalTotal, roundOff: finalTotal - rawTotal, paid, balance: finalTotal - paid };
+}
+
+function isInDateRange(dateValue, range, selectedYear) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  const now = new Date();
+  if (range === "Today") return date.toDateString() === now.toDateString();
+  if (range === "This Week") {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay());
+    start.setHours(0, 0, 0, 0);
+    return date >= start && date <= now;
+  }
+  if (range === "This Month") return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  if (range === "This Year") return date.getFullYear() === now.getFullYear();
+  return String(date.getFullYear()) === String(selectedYear);
+}
+
+function addDays(dateValue, days) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getInitials(value) {
+  return (value || "Unknown customer").split(" ").slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
 function formatMoney(value) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value || 0));
 }
 
 function Login() {
@@ -400,7 +700,7 @@ function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: getAuthRedirectUrl(),
         queryParams: {
           access_type: "offline",
           prompt: "consent",

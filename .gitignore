@@ -1,6 +1,7 @@
 node_modules/
 dist/
 frontend/dist/
+frontend/.env.example
 frontend/vite-dev*.log
 
 __pycache__/

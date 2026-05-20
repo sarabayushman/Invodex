@@ -231,8 +231,13 @@ button {
 
 .search-field input,
 .list-tools select,
+.select-field input,
+.select-field select,
 .mini-field input,
+.readonly-field input,
+.final-total input,
 .summary-row input,
+.payment-log-edit-row input,
 .notes-field textarea {
   background: transparent;
   border: 0;
@@ -241,12 +246,26 @@ button {
   width: 100%;
 }
 
-.list-tools select {
+.list-tools select,
+.select-field input,
+.select-field select {
   background: #ffffff;
   border: 1px solid #e3e3de;
   border-radius: 8px;
   min-height: 40px;
   padding: 0 10px;
+}
+
+.select-field {
+  color: #6d6d65;
+  display: grid;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.select-field.full {
+  margin-bottom: 12px;
 }
 
 .filter-tabs {
@@ -275,6 +294,7 @@ button {
 
 .invoice-list {
   display: grid;
+  align-content: start;
   gap: 8px;
   overflow-y: auto;
   padding-right: 2px;
@@ -289,6 +309,7 @@ button {
   display: grid;
   gap: 12px;
   padding: 13px;
+  position: relative;
   text-align: left;
 }
 
@@ -308,6 +329,34 @@ button {
   margin-top: 4px;
 }
 
+.invoice-date {
+  color: #77776f;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.invoice-delete {
+  align-items: center;
+  background: #fff0ed;
+  border: 1px solid #ffd3cc;
+  border-radius: 8px;
+  color: #9a2117;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  opacity: 0;
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  transition: opacity 160ms ease;
+  width: 32px;
+}
+
+.invoice-list-item:hover .invoice-delete,
+.invoice-delete:focus {
+  opacity: 1;
+}
+
 .invoice-item-meta {
   align-items: center;
   display: flex;
@@ -320,8 +369,28 @@ button {
 }
 
 .add-invoice-button {
-  margin-top: 14px;
   width: 100%;
+}
+
+.invoice-list-footer {
+  background: #ffffff;
+  border-top: 1px solid #eeeeea;
+  margin: 12px -14px -14px;
+  padding: 12px 14px 14px;
+  position: sticky;
+  bottom: 0;
+}
+
+.loading-row,
+.empty-list {
+  background: #f8f8f5;
+  border: 1px dashed #d8d8d2;
+  border-radius: 8px;
+  color: #74746c;
+  font-size: 0.84rem;
+  font-weight: 750;
+  padding: 12px;
+  text-align: center;
 }
 
 .invoice-detail {
@@ -372,8 +441,19 @@ button {
   padding: 12px;
 }
 
-.invoice-identity strong {
+.invoice-identity input,
+.readonly-field input,
+.final-total input,
+.summary-row input {
+  background: #ffffff;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  color: #171717;
   font-size: 1rem;
+  font-weight: 800;
+  min-height: 36px;
+  padding: 0 10px;
+  width: 100%;
 }
 
 .invoice-identity small {
@@ -525,6 +605,10 @@ td small {
   margin-bottom: 12px;
 }
 
+.one-column {
+  grid-template-columns: 1fr;
+}
+
 .date-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -538,6 +622,15 @@ td small {
   display: grid;
   gap: 6px;
   padding: 10px;
+}
+
+.mini-field input,
+.readonly-field input {
+  background: #ffffff;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 0 10px;
 }
 
 .mini-field span,
@@ -578,7 +671,6 @@ td small {
   color: #686860;
 }
 
-.summary-row strong,
 .summary-row input {
   font-weight: 800;
   text-align: right;
@@ -588,7 +680,7 @@ td small {
   background: #f8f8f5;
   border: 1px solid #e8e8e3;
   border-radius: 7px;
-  max-width: 112px;
+  max-width: 156px;
   min-height: 32px;
   padding: 0 8px;
 }
@@ -613,9 +705,14 @@ td small {
   font-weight: 750;
 }
 
-.final-total strong {
+.final-total input {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
   font-size: 1.8rem;
   line-height: 1;
+  max-width: none;
+  text-align: left;
 }
 
 .action-panel {
@@ -734,6 +831,11 @@ td small {
   width: min(100%, 520px);
 }
 
+.dialog-card.wide {
+  max-width: 980px;
+  width: min(100%, 980px);
+}
+
 .dialog-header {
   align-items: center;
   display: flex;
@@ -758,6 +860,108 @@ td small {
 .dialog-content {
   display: grid;
   gap: 12px;
+}
+
+.picker-dialog {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+}
+
+.picker-editor {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.picker-editor .button,
+.picker-editor .notes-field {
+  grid-column: 1 / -1;
+}
+
+.picker-search {
+  border-left: 1px solid #eeeeea;
+  display: grid;
+  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 420px;
+  padding-left: 16px;
+}
+
+.picker-results {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.picker-results button {
+  background: #fafaf8;
+  border: 1px solid #ecece7;
+  border-radius: 8px;
+  color: #171717;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+  text-align: left;
+}
+
+.picker-results button:hover {
+  border-color: #111111;
+}
+
+.picker-results span,
+.picker-results small {
+  color: #6f6f67;
+}
+
+.payment-log-editor {
+  border-top: 1px solid #eeeeea;
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.mini-button {
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.payment-log-form {
+  display: grid;
+  gap: 10px;
+}
+
+.payment-log-edit-row {
+  background: #f8f8f5;
+  border: 1px solid #e8e8e3;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 10px;
+}
+
+.payment-log-edit-row label {
+  color: #6d6d65;
+  display: grid;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 5px;
+}
+
+.payment-log-edit-row input {
+  background: #ffffff;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  min-height: 34px;
+  padding: 0 8px;
+}
+
+.payment-context {
+  display: grid;
+  gap: 8px;
 }
 
 .payment-log-list {

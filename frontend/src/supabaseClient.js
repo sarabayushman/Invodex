@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const authRedirectUrl = import.meta.env.VITE_AUTH_REDIRECT_URL;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Missing Supabase environment variables. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
@@ -19,6 +20,11 @@ export const supabase = createClient(
   },
   },
 );
+
+export function getAuthRedirectUrl() {
+  if (authRedirectUrl) return authRedirectUrl;
+  return `${window.location.origin}/login`;
+}
 
 export function upsertUserProfile(user) {
   return supabase
