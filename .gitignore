@@ -1,15 +1,27 @@
-node_modules/
-dist/
-frontend/dist/
-frontend/.env.example
-frontend/vite-dev*.log
+# Environment files
+**/.env
+**/.env.*
+!**/.env.example
 
+# Dependencies
+node_modules/
+**/node_modules/
+.venv/
+**/.venv/
+
+# Build outputs
+dist/
+**/dist/
+
+# Logs
+*.log
+
+# Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 .pytest_cache/
-.venv/
-api/.venv/
+**/.pytest_cache/
 
-.env
-.env.local
+# Vercel
 .vercel/
