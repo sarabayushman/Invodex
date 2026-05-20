@@ -5,9 +5,11 @@ import {
   Bot,
   Box,
   Building2,
+  CalendarDays,
   Check,
   Download,
   Edit3,
+  Eye,
   FileText,
   LayoutDashboard,
   LockKeyhole,
@@ -73,12 +75,12 @@ const navItems = [
   { name: "Customers", icon: Users },
   { name: "AI analytics", icon: Bot },
   { name: "Mail & Contact", icon: Mail },
-  { name: "Employees", icon: Building2, separated: true },
+  { name: "Team", icon: Building2, separated: true },
   { name: "Settings", icon: Settings },
 ];
 
 const filters = ["All", "Pending Payment", "Past Due Date", "Pending Delivery", "Raised Issues"];
-const dateRanges = ["Today", "This Week", "This Month", "This Year", "Select Year"];
+const dateRanges = ["Today", "This Week", "This Month", "This Year", "Custom Range"];
 const emptyCustomer = { name: "Unknown customer", contact: "", address: "", gstin: "", email: "", phone: "" };
 const emptyProduct = { pid: "", hsn: "", name: "", desc: "", cost: 0, margin: "", shownDiscount: 0, unit: 0, extraDiscount: 0, qty: 1, gst: 18 };
 
@@ -89,11 +91,17 @@ function makeInvoice(invoice, index) {
     ...invoice,
     customerInfo,
     products: productCatalog.slice(0, 3).map((item) => ({ ...item })),
+    note: index % 2 === 0 ? "Customer prefers a consolidated dispatch update after payment." : "",
+    delivered: invoice.status === "Pending Payment",
     payment: {
       type: index % 3 === 1 ? "Pay Later" : index % 3 === 2 ? "EMI" : "Spot",
       billingDate: invoice.billingDate,
       creditDays: 20,
+      emiMonths: 6,
+      interestRate: 12,
+      paid: false,
       nextEmiDueDate: "2026-06-14",
+      closingDate: "2026-11-14",
       logs: [
         { amount: Math.round(invoice.total * 0.25), date: invoice.billingDate, mode: "UPI", note: "Advance paid" },
         { amount: Math.round(invoice.total * 0.15), date: "2026-05-18", mode: "Bank transfer", note: "Partial payment" },
@@ -132,7 +140,7 @@ function MainApp() {
   const [activeMenu, setActiveMenu] = useState("Invoices");
   const [activeFilter, setActiveFilter] = useState("All");
   const [dateRange, setDateRange] = useState("This Month");
-  const [selectedYear, setSelectedYear] = useState("2026");
+  const [customRange, setCustomRange] = useState({ start: "2026-05-01", end: "2026-05-31" });
   const [visibleCount, setVisibleCount] = useState(10);
   const [invoiceList, setInvoiceList] = useState(() => baseInvoices.map(makeInvoice));
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("INV-2026-0148");
@@ -145,9 +153,9 @@ function MainApp() {
   const filteredInvoices = useMemo(() => {
     return invoiceList.filter((invoice) => {
       const matchesStatus = activeFilter === "All" || invoice.status === activeFilter;
-      return matchesStatus && isInDateRange(invoice.billingDate, dateRange, selectedYear);
+      return matchesStatus && isInDateRange(invoice.billingDate, dateRange, customRange);
     });
-  }, [activeFilter, dateRange, invoiceList, selectedYear]);
+  }, [activeFilter, customRange, dateRange, invoiceList]);
 
   const visibleInvoices = filteredInvoices.slice(0, visibleCount);
   const rows = useMemo(() => selectedInvoice.products.map(getPricedRow), [selectedInvoice.products]);
@@ -155,7 +163,7 @@ function MainApp() {
 
   useEffect(() => {
     setVisibleCount(10);
-  }, [activeFilter, dateRange, selectedYear]);
+  }, [activeFilter, customRange, dateRange]);
 
   function showToast(message) {
     setToast(message);
@@ -191,7 +199,9 @@ function MainApp() {
       billingDate: todayIso(),
       customerInfo: { ...emptyCustomer },
       products: [],
-      payment: { type: "Spot", billingDate: todayIso(), creditDays: 0, nextEmiDueDate: todayIso(), logs: [] },
+      note: "",
+      delivered: false,
+      payment: { type: "Spot", billingDate: todayIso(), creditDays: 0, emiMonths: 6, interestRate: 12, paid: false, nextEmiDueDate: addMonths(todayIso(), 1), closingDate: addMonths(todayIso(), 6), logs: [] },
     };
 
     setInvoiceList((current) => [invoice, ...current]);
@@ -202,6 +212,8 @@ function MainApp() {
   }
 
   function deleteInvoice(id) {
+    const invoice = invoiceList.find((item) => item.id === id);
+    if (!window.confirm(`Delete ${invoice?.id || "this invoice"}? This action cannot be undone.`)) return;
     setInvoiceList((current) => {
       const next = current.filter((invoice) => invoice.id !== id);
       if (selectedInvoiceId === id && next[0]) setSelectedInvoiceId(next[0].id);
@@ -269,7 +281,7 @@ function MainApp() {
 
         <div className="invoice-layout">
           <aside className="invoice-list-panel">
-            <InvoiceListTools dateRange={dateRange} setDateRange={setDateRange} selectedYear={selectedYear} setSelectedYear={setSelectedYear} />
+            <InvoiceListTools customRange={customRange} dateRange={dateRange} setCustomRange={setCustomRange} setDateRange={setDateRange} />
             <div className="filter-tabs" aria-label="Invoice filters">
               {filters.map((filter) => (
                 <button className={activeFilter === filter ? "active" : ""} key={filter} onClick={() => setActiveFilter(filter)} type="button">{filter}</button>
@@ -294,13 +306,14 @@ function MainApp() {
           </aside>
 
           <section className="invoice-detail">
-            <CustomerHeader invoice={selectedInvoice} onEdit={() => setDialog("customer")} />
+            <CustomerHeader invoice={selectedInvoice} totals={totals} onEdit={() => setDialog("customer")} />
             <section className="detail-grid">
               <section className="detail-main">
-                <ProductTable rows={rows} onAdd={() => openProductDialog(null, null)} onDelete={deleteProduct} onEdit={openProductDialog} />
+                <ProductTable delivered={selectedInvoice.delivered} rows={rows} onAdd={() => openProductDialog(null, null)} onDelete={deleteProduct} onEdit={openProductDialog} onToggleDelivered={(delivered) => updateSelectedInvoice({ delivered })} />
+                <GeneralNote value={selectedInvoice.note} onChange={(note) => updateSelectedInvoice({ note })} />
               </section>
               <aside className="detail-side">
-                <PaymentCard payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} />
+                <PaymentCard payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} onOpenLog={() => setDialog("payment-log")} onOpenPlan={() => setDialog("emi-plan")} />
                 <MoneySummary totals={totals} />
                 <ActionPanel onDownload={() => showToast("Feature coming soon")} onReminder={() => showToast("Reminder feature coming soon")} onSend={() => setDialog("send")} />
               </aside>
@@ -315,28 +328,86 @@ function MainApp() {
           {dialog === "customer" ? <CustomerDialog invoice={selectedInvoice} onSave={(customerInfo) => updateSelectedInvoice({ customerInfo, customer: customerInfo.name || "Unknown customer" })} /> : null}
           {dialog === "send" ? <SendInvoiceDialog customer={selectedInvoice.customer} /> : null}
           {dialog === "product" && editingProduct ? <ProductDialog editingProduct={editingProduct} onSave={saveProduct} /> : null}
+          {dialog === "payment-log" ? <PaymentLogDialog payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} /> : null}
+          {dialog === "emi-plan" ? <EmiPlanDialog payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} /> : null}
         </Dialog>
       ) : null}
     </main>
   );
 }
 
-function InvoiceListTools({ dateRange, setDateRange, selectedYear, setSelectedYear }) {
+function InvoiceListTools({ customRange, dateRange, setCustomRange, setDateRange }) {
+  const [open, setOpen] = useState(false);
+
   return (
     <div className="list-tools">
       <div className="search-field"><Search size={16} /><input placeholder="Search invoices" /></div>
       <label className="select-field">
         <span>Date range</span>
-        <select aria-label="Date range" value={dateRange} onChange={(event) => setDateRange(event.target.value)}>
+        <select aria-label="Date range" value={dateRange} onChange={(event) => { setDateRange(event.target.value); setOpen(event.target.value === "Custom Range"); }}>
           {dateRanges.map((range) => <option key={range}>{range}</option>)}
         </select>
       </label>
-      {dateRange === "Select Year" ? (
-        <label className="select-field">
-          <span>Year</span>
-          <input min="2020" type="number" value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)} />
-        </label>
+      {dateRange === "Custom Range" ? (
+        <div className="range-picker-shell">
+          <button className="range-trigger" type="button" onClick={() => setOpen((current) => !current)}><CalendarDays size={16} />{formatRangeLabel(customRange)}</button>
+          {open ? <DateRangePicker range={customRange} onChange={setCustomRange} onDone={() => setOpen(false)} /> : null}
+        </div>
       ) : null}
+    </div>
+  );
+}
+
+function DateRangePicker({ range, onChange, onDone }) {
+  const [mode, setMode] = useState("date");
+  const [cursor, setCursor] = useState(range.start || todayIso());
+  const [draft, setDraft] = useState(range);
+  const days = getCalendarDays(cursor);
+  const monthLabel = new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(`${cursor}T00:00:00`));
+
+  function pickDate(date) {
+    if (!draft.start || draft.end) {
+      setDraft({ start: date, end: "" });
+      return;
+    }
+
+    const next = normalizeRange(draft.start, date);
+    setDraft(next);
+    onChange(next);
+  }
+
+  function pickSpan(value) {
+    const next = getSpanRange(mode, value);
+    setDraft(next);
+    onChange(next);
+  }
+
+  return (
+    <div className="date-range-popover">
+      <div className="range-mode-tabs">
+        {["date", "month", "year"].map((item) => <button className={mode === item ? "active" : ""} key={item} onClick={() => setMode(item)} type="button">{item}</button>)}
+      </div>
+      {mode === "date" ? (
+        <>
+          <div className="calendar-head">
+            <button type="button" onClick={() => setCursor(addMonths(cursor, -1))}>Prev</button>
+            <strong>{monthLabel}</strong>
+            <button type="button" onClick={() => setCursor(addMonths(cursor, 1))}>Next</button>
+          </div>
+          <div className="calendar-grid">
+            {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}
+            {days.map((day) => <button className={`${day.muted ? "muted" : ""} ${isInsideRange(day.date, draft) ? "selected" : ""}`} key={day.date} onClick={() => pickDate(day.date)} type="button">{new Date(`${day.date}T00:00:00`).getDate()}</button>)}
+          </div>
+        </>
+      ) : (
+        <div className="span-grid">
+          {getSpanOptions(mode, cursor).map((item) => <button className={isSameRange(getSpanRange(mode, item.value), draft) ? "selected" : ""} key={item.value} onClick={() => pickSpan(item.value)} type="button">{item.label}</button>)}
+        </div>
+      )}
+      <div className="range-footer">
+        <span>{formatRangeLabel(draft)}</span>
+        <button type="button" onClick={onDone}>Done</button>
+      </div>
     </div>
   );
 }
@@ -356,8 +427,9 @@ function InvoiceListItem({ invoice, isActive, onDelete, onSelect }) {
   );
 }
 
-function CustomerHeader({ invoice, onEdit }) {
+function CustomerHeader({ invoice, totals, onEdit }) {
   const customer = invoice.customerInfo || emptyCustomer;
+  const tags = getInvoiceTags(invoice, totals);
 
   return (
     <section className="customer-header">
@@ -368,10 +440,13 @@ function CustomerHeader({ invoice, onEdit }) {
         <div className="customer-meta">
           <span>{customer.contact || "No contact selected"}</span><span>{customer.address || "No address"}</span><span>{customer.gstin || "No GSTIN"}</span><span>{customer.email || "No email"}</span><span>{customer.phone || "No phone"}</span>
         </div>
+        <div className="customer-tags">
+          {tags.map((tag) => <span className={`info-tag ${tag.tone}`} key={tag.label}>{tag.label}</span>)}
+        </div>
       </div>
       <div className="invoice-identity">
         <Label>Invoice number</Label>
-        <input readOnly value={invoice.id} />
+        <strong>{invoice.id}</strong>
         <small>Billing date: {invoice.billingDate}</small>
         <Button className="secondary-action" onClick={onEdit} type="button"><Edit3 size={16} />Edit customer</Button>
       </div>
@@ -379,7 +454,7 @@ function CustomerHeader({ invoice, onEdit }) {
   );
 }
 
-function ProductTable({ rows, onAdd, onDelete, onEdit }) {
+function ProductTable({ delivered, rows, onAdd, onDelete, onEdit, onToggleDelivered }) {
   return (
     <section className="product-card">
       <div className="section-heading">
@@ -400,17 +475,28 @@ function ProductTable({ rows, onAdd, onDelete, onEdit }) {
         </table>
       </div>
       {!rows.length ? <p className="muted-copy">No products added yet.</p> : null}
-      <label className="delivered-check"><input type="checkbox" /><span>Delivered</span></label>
+      <label className="delivered-check"><input checked={delivered} type="checkbox" onChange={(event) => onToggleDelivered(event.target.checked)} /><span>Delivered</span></label>
     </section>
   );
 }
 
-function PaymentCard({ payment, totals, updatePayment }) {
-  const closureDate = addDays(payment.billingDate, Number(payment.creditDays || 0));
+function GeneralNote({ value, onChange }) {
+  return (
+    <section className="product-card note-card">
+      <div className="section-heading compact"><div><p>Invoice note</p><h3>General note</h3></div></div>
+      <label className="notes-field plain-note"><span>Note</span><textarea value={value || ""} onChange={(event) => onChange(event.target.value)} placeholder="Add a general note for this invoice" /></label>
+    </section>
+  );
+}
+
+function PaymentCard({ payment, totals, updatePayment, onOpenLog, onOpenPlan }) {
+  const plan = getPaymentPlan(payment, totals.finalTotal);
+  const lastLog = payment.logs[payment.logs.length - 1];
 
   return (
     <section className="side-card">
       <div className="section-heading compact"><div><p>Payment</p><h3>Terms</h3></div></div>
+      <DaysLeftPanel days={getDaysUntilDue(payment)} />
       <label className="select-field full">
         <span>Payment type</span>
         <select value={payment.type} onChange={(event) => updatePayment({ type: event.target.value })}>
@@ -422,15 +508,25 @@ function PaymentCard({ payment, totals, updatePayment }) {
       <div className="conditional-grid one-column">
         <label className="mini-field"><span>Billing date</span><input type="date" value={payment.billingDate} onChange={(event) => updatePayment({ billingDate: event.target.value })} /></label>
         {payment.type === "Pay Later" ? <label className="mini-field"><span>Credit days</span><input min="0" type="number" value={payment.creditDays} onChange={(event) => updatePayment({ creditDays: event.target.value })} /></label> : null}
-        {payment.type === "Pay Later" ? <div className="readonly-field"><Label>Closure date</Label><input readOnly value={closureDate} /></div> : null}
-        {payment.type === "EMI" ? <label className="mini-field"><span>Next EMI due date</span><input type="date" value={payment.nextEmiDueDate} onChange={(event) => updatePayment({ nextEmiDueDate: event.target.value })} /></label> : null}
+        {payment.type === "EMI" ? <DisplayField label="Next EMI due date" value={plan.nextEmiDueDate} /> : null}
+        {payment.type === "EMI" ? <DisplayField label="Closing date" value={plan.closingDate} /> : null}
       </div>
-      <PaymentLogEditor payment={payment} totals={totals} updatePayment={updatePayment} />
+      <label className="check-row payment-done"><input checked={Boolean(payment.paid)} type="checkbox" onChange={(event) => updatePayment({ paid: event.target.checked })} /><span>Payment done</span></label>
+      {payment.type === "EMI" ? <Button className="secondary-action" onClick={onOpenPlan} type="button"><Edit3 size={16} />Edit plan</Button> : null}
+      <div className="last-payment-box">
+        <span>Last payment log</span>
+        {lastLog ? <strong>{formatMoney(lastLog.amount)} via {lastLog.mode}</strong> : <strong>No payments yet</strong>}
+        <small>{lastLog ? `${lastLog.date} - ${lastLog.note || "No note"}` : "Add a log when a payment arrives."}</small>
+      </div>
+      <div className="payment-log-actions">
+        <Button className="secondary-action" onClick={() => updatePayment({ logs: [...payment.logs, { amount: 0, date: todayIso(), mode: payment.type === "EMI" ? "EMI" : "UPI", note: "" }] })} type="button"><Plus size={15} />Add log</Button>
+        <Button className="secondary-action" onClick={onOpenLog} type="button"><Eye size={15} />View payment log</Button>
+      </div>
     </section>
   );
 }
 
-function PaymentLogEditor({ payment, totals, updatePayment }) {
+function PaymentLogDialog({ payment, totals, updatePayment }) {
   const heading = payment.type === "EMI" ? "EMI payments" : payment.type === "Pay Later" ? "Pay later ledger" : "Spot payment";
 
   function updateLog(index, key, value) {
@@ -444,22 +540,38 @@ function PaymentLogEditor({ payment, totals, updatePayment }) {
 
   return (
     <div className="payment-log-editor">
-      <div className="section-heading compact"><div><p>Payment log</p><h3>{heading}</h3></div><Button className="mini-button" onClick={addLog} type="button"><Plus size={15} />Add</Button></div>
+      <div className="section-heading compact"><div><p>Payment log</p><h3>{heading}</h3></div><Button className="mini-button" onClick={addLog} type="button"><Plus size={15} />Add log</Button></div>
       <div className="payment-log-form">
         {payment.logs.map((item, index) => (
           <div className="payment-log-edit-row" key={`${item.date}-${index}`}>
             <label><span>Amount</span><input type="number" value={item.amount} onChange={(event) => updateLog(index, "amount", event.target.value)} /></label>
-            <label><span>Date</span><input type="date" value={item.date} onChange={(event) => updateLog(index, "date", event.target.value)} /></label>
-            <label><span>Mode</span><input value={item.mode} onChange={(event) => updateLog(index, "mode", event.target.value)} /></label>
+            <label><span>Timestamp</span><input type="date" value={item.date} onChange={(event) => updateLog(index, "date", event.target.value)} /></label>
+            <label><span>Payment from</span><select value={item.mode} onChange={(event) => updateLog(index, "mode", event.target.value)}><option>UPI</option><option>Cash</option><option>Cheque</option><option>Bank transfer</option><option>EMI</option></select></label>
             <label><span>Note</span><input value={item.note} onChange={(event) => updateLog(index, "note", event.target.value)} /></label>
           </div>
         ))}
       </div>
       <div className="payment-context">
-        {payment.type === "Spot" ? <OutputField label="Spot balance" value={formatMoney(totals.balance)} /> : null}
-        {payment.type === "EMI" ? <OutputField label="Next due" value={payment.nextEmiDueDate} /> : null}
-        {payment.type === "Pay Later" ? <OutputField label="Credit balance" value={formatMoney(totals.balance)} /> : null}
+        <DisplayField label="Remaining balance" value={formatMoney(totals.balance)} />
+        {payment.type === "EMI" ? <DisplayField label="Next EMI due" value={getPaymentPlan(payment, totals.finalTotal).nextEmiDueDate} /> : null}
+        {payment.type === "Pay Later" ? <DisplayField label="Closure date" value={addDays(payment.billingDate, Number(payment.creditDays || 0))} /> : null}
       </div>
+    </div>
+  );
+}
+
+function EmiPlanDialog({ payment, totals, updatePayment }) {
+  const plan = getPaymentPlan(payment, totals.finalTotal);
+
+  return (
+    <div className="dialog-content emi-plan">
+      <EditableField label="Billing date" type="date" value={payment.billingDate} onChange={(value) => updatePayment({ billingDate: value })} />
+      <EditableField label="Months" type="number" value={payment.emiMonths} onChange={(value) => updatePayment({ emiMonths: Number(value) })} />
+      <EditableField label="Interest rate %" type="number" value={payment.interestRate} onChange={(value) => updatePayment({ interestRate: Number(value) })} />
+      <DisplayField label="Invoice principal" value={formatMoney(totals.finalTotal)} />
+      <DisplayField label="Estimated EMI" value={formatMoney(plan.monthlyAmount)} />
+      <DisplayField label="Next EMI due date" value={plan.nextEmiDueDate} />
+      <DisplayField label="Closing date" value={plan.closingDate} />
     </div>
   );
 }
@@ -469,7 +581,7 @@ function MoneySummary({ totals }) {
     <section className="side-card money-card">
       <div className="section-heading compact"><div><p>Money summary</p><h3>Total</h3></div></div>
       <SummaryRow label="Subtotal" value={formatMoney(totals.subtotal)} /><SummaryRow label="Total tax" value={formatMoney(totals.tax)} /><SummaryRow label="Freight charges" value={formatMoney(totals.freight)} /><SummaryRow label="Other charges" value={formatMoney(totals.other)} /><SummaryRow label="Round off" value={totals.roundOff.toFixed(2)} />
-      <div className="final-total"><span>Final Total</span><input readOnly value={formatMoney(totals.finalTotal)} /></div>
+      <div className="final-total"><span>Final Total</span><strong>{formatMoney(totals.finalTotal)}</strong></div>
       <SummaryRow label="Previously paid" value={formatMoney(totals.paid)} /><SummaryRow label="Balance due" value={formatMoney(totals.balance)} strong />
     </section>
   );
@@ -578,8 +690,12 @@ function OutputField({ label, value }) {
   return <div className="readonly-field"><Label>{label}</Label><input readOnly value={value} /></div>;
 }
 
+function DisplayField({ label, value }) {
+  return <div className="display-field"><span>{label}</span><strong>{value}</strong></div>;
+}
+
 function SummaryRow({ label, value, strong }) {
-  return <div className={`summary-row ${strong ? "strong" : ""}`}><span>{label}</span><input readOnly value={value} /></div>;
+  return <div className={`summary-row ${strong ? "strong" : ""}`}><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function StatusBadge({ status }) {
@@ -594,6 +710,8 @@ function DaysBadge({ days, compact }) {
 function dialogTitle(dialog) {
   if (dialog === "customer") return "Customer information";
   if (dialog === "send") return "Send Invoice";
+  if (dialog === "payment-log") return "Payment log";
+  if (dialog === "emi-plan") return "EMI plan";
   return "Product information";
 }
 
@@ -613,7 +731,7 @@ function getInvoiceTotals(rows, logs) {
   return { subtotal, tax, freight, other, rawTotal, finalTotal, roundOff: finalTotal - rawTotal, paid, balance: finalTotal - paid };
 }
 
-function isInDateRange(dateValue, range, selectedYear) {
+function isInDateRange(dateValue, range, customRange) {
   const date = new Date(`${dateValue}T00:00:00`);
   const now = new Date();
   if (range === "Today") return date.toDateString() === now.toDateString();
@@ -625,13 +743,114 @@ function isInDateRange(dateValue, range, selectedYear) {
   }
   if (range === "This Month") return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
   if (range === "This Year") return date.getFullYear() === now.getFullYear();
-  return String(date.getFullYear()) === String(selectedYear);
+  if (range === "Custom Range") {
+    const normalized = normalizeRange(customRange.start, customRange.end || customRange.start);
+    return date >= new Date(`${normalized.start}T00:00:00`) && date <= new Date(`${normalized.end}T23:59:59`);
+  }
+  return true;
 }
 
 function addDays(dateValue, days) {
   const date = new Date(`${dateValue}T00:00:00`);
   date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return toIsoDate(date);
+}
+
+function addMonths(dateValue, months) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  const day = date.getDate();
+  date.setMonth(date.getMonth() + Number(months || 0));
+  if (date.getDate() !== day) date.setDate(0);
+  return toIsoDate(date);
+}
+
+function toIsoDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function normalizeRange(start, end) {
+  return start <= end ? { start, end } : { start: end, end: start };
+}
+
+function formatRangeLabel(range) {
+  if (!range.start && !range.end) return "Select two dates";
+  if (!range.end) return `${range.start} - choose end`;
+  return `${range.start} to ${range.end}`;
+}
+
+function getCalendarDays(cursor) {
+  const current = new Date(`${cursor}T00:00:00`);
+  const year = current.getFullYear();
+  const month = current.getMonth();
+  const first = new Date(year, month, 1);
+  const start = new Date(first);
+  start.setDate(first.getDate() - first.getDay());
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return { date: toIsoDate(date), muted: date.getMonth() !== month };
+  });
+}
+
+function isInsideRange(date, range) {
+  if (!range.start) return false;
+  const normalized = normalizeRange(range.start, range.end || range.start);
+  return date >= normalized.start && date <= normalized.end;
+}
+
+function getSpanOptions(mode, cursor) {
+  const year = new Date(`${cursor}T00:00:00`).getFullYear();
+  if (mode === "month") {
+    return Array.from({ length: 12 }, (_, index) => ({ label: new Intl.DateTimeFormat("en-IN", { month: "short" }).format(new Date(year, index, 1)), value: `${year}-${String(index + 1).padStart(2, "0")}` }));
+  }
+  return Array.from({ length: 7 }, (_, index) => ({ label: String(year - 3 + index), value: String(year - 3 + index) }));
+}
+
+function getSpanRange(mode, value) {
+  if (mode === "month") {
+    const [year, month] = value.split("-").map(Number);
+    const start = `${year}-${String(month).padStart(2, "0")}-01`;
+    const end = toIsoDate(new Date(year, month, 0));
+    return { start, end };
+  }
+  return { start: `${value}-01-01`, end: `${value}-12-31` };
+}
+
+function isSameRange(first, second) {
+  return first.start === second.start && first.end === second.end;
+}
+
+function getPaymentPlan(payment, principal = 0) {
+  const months = Math.max(1, Number(payment.emiMonths || 1));
+  const nextEmiDueDate = addMonths(payment.billingDate, 1);
+  const closingDate = addMonths(payment.billingDate, months);
+  const interestMultiplier = 1 + Number(payment.interestRate || 0) / 100;
+  return {
+    nextEmiDueDate,
+    closingDate,
+    monthlyAmount: Math.round((Number(principal || 0) * interestMultiplier) / months),
+  };
+}
+
+function getDaysUntilDue(payment) {
+  const dueDate = payment.type === "EMI" ? getPaymentPlan(payment).nextEmiDueDate : payment.type === "Pay Later" ? addDays(payment.billingDate, Number(payment.creditDays || 0)) : payment.billingDate;
+  const today = new Date(`${todayIso()}T00:00:00`);
+  const due = new Date(`${dueDate}T00:00:00`);
+  return Math.ceil((due - today) / 86400000);
+}
+
+function DaysLeftPanel({ days }) {
+  const tone = days < 0 ? "danger" : days <= 5 ? "warning" : "success";
+  return <div className={`days-left-panel ${tone}`}><span>{days < 0 ? "Past due" : "Days left"}</span><strong>{days < 0 ? Math.abs(days) : days}</strong><small>{days < 0 ? "days overdue" : "days remaining"}</small></div>;
+}
+
+function getInvoiceTags(invoice, totals) {
+  const tags = [{ label: invoice.status, tone: invoice.days < 0 ? "danger" : invoice.status === "Pending Delivery" ? "info" : "warning" }];
+  tags.push({ label: invoice.payment.paid || totals.balance <= 0 ? "Payment Done" : "Pending Payment", tone: invoice.payment.paid || totals.balance <= 0 ? "success" : "warning" });
+  if (invoice.days < 0) tags.push({ label: "Payment Past Due Date", tone: "danger" });
+  tags.push({ label: invoice.delivered ? "Delivered" : "Pending Delivery", tone: invoice.delivered ? "success" : "info" });
+  if (invoice.payment.type === "EMI") tags.push({ label: "EMI", tone: "neutral" });
+  return tags;
 }
 
 function todayIso() {

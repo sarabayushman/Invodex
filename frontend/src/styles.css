@@ -16,6 +16,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 button,
@@ -42,20 +43,51 @@ button {
 .app-page {
   background: #f4f4f1;
   display: grid;
-  grid-template-columns: 244px minmax(0, 1fr);
+  grid-template-columns: 76px minmax(0, 1fr);
   min-height: 100vh;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 .app-sidebar {
   background: #ffffff;
   border-right: 1px solid #e4e4df;
+  bottom: 0;
+  box-shadow: 10px 0 28px rgba(22, 22, 20, 0);
   display: flex;
   flex-direction: column;
   gap: 28px;
-  min-height: 100vh;
+  height: 100vh;
+  left: 0;
+  min-height: 0;
+  overflow: hidden;
   padding: 22px 16px;
-  position: sticky;
+  position: fixed;
   top: 0;
+  transition:
+    box-shadow 180ms ease,
+    width 180ms ease;
+  white-space: nowrap;
+  width: 76px;
+  z-index: 25;
+}
+
+.app-sidebar:hover,
+.app-sidebar:focus-within {
+  box-shadow: 14px 0 38px rgba(22, 22, 20, 0.12);
+  width: 244px;
+}
+
+.app-sidebar:not(:hover):not(:focus-within) {
+  align-items: center;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.app-sidebar:not(:hover):not(:focus-within) .app-brand > span:last-child,
+.app-sidebar:not(:hover):not(:focus-within) .side-nav-item span {
+  opacity: 0;
+  width: 0;
 }
 
 .brand-lockup {
@@ -115,6 +147,26 @@ button {
   min-height: 42px;
   padding: 10px 12px;
   text-align: left;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    width 180ms ease;
+  width: 212px;
+}
+
+.app-sidebar:not(:hover):not(:focus-within) .side-nav-item {
+  gap: 0;
+  justify-content: center;
+  padding: 10px;
+  width: 44px;
+}
+
+.side-nav-item span,
+.app-brand > span:last-child {
+  overflow: hidden;
+  transition:
+    opacity 140ms ease,
+    width 180ms ease;
 }
 
 .side-nav-item.separated {
@@ -128,8 +180,11 @@ button {
 }
 
 .workspace {
+  grid-column: 2;
   min-width: 0;
+  overflow-x: hidden;
   padding: 20px;
+  width: 100%;
 }
 
 .app-topbar {
@@ -137,8 +192,9 @@ button {
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  margin: 0 auto 16px;
-  max-width: 1720px;
+  margin: 0 0 16px;
+  min-width: 0;
+  width: 100%;
 }
 
 .app-topbar p,
@@ -160,6 +216,7 @@ button {
 
 .topbar-actions {
   align-items: center;
+  flex: 0 0 auto;
   display: flex;
   gap: 10px;
 }
@@ -182,8 +239,9 @@ button {
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  margin: 0 auto;
-  max-width: 1720px;
+  margin: 0;
+  min-width: 0;
+  width: 100%;
 }
 
 .invoice-list-panel,
@@ -237,6 +295,7 @@ button {
 .readonly-field input,
 .final-total input,
 .summary-row input,
+.payment-log-edit-row select,
 .payment-log-edit-row input,
 .notes-field textarea {
   background: transparent;
@@ -397,6 +456,7 @@ button {
   display: grid;
   gap: 16px;
   min-width: 0;
+  overflow-x: hidden;
 }
 
 .customer-header {
@@ -404,6 +464,7 @@ button {
   display: grid;
   gap: 16px;
   grid-template-columns: auto minmax(0, 1fr) minmax(220px, auto);
+  min-width: 0;
   padding: 18px;
 }
 
@@ -422,6 +483,7 @@ button {
 .customer-copy h2 {
   font-size: 1.28rem;
   margin: 0 0 10px;
+  overflow-wrap: anywhere;
 }
 
 .customer-meta {
@@ -430,6 +492,18 @@ button {
   flex-wrap: wrap;
   gap: 8px 14px;
   font-size: 0.88rem;
+  min-width: 0;
+}
+
+.customer-meta span {
+  overflow-wrap: anywhere;
+}
+
+.customer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
 }
 
 .invoice-identity {
@@ -441,7 +515,7 @@ button {
   padding: 12px;
 }
 
-.invoice-identity input,
+.invoice-identity strong,
 .readonly-field input,
 .final-total input,
 .summary-row input {
@@ -456,19 +530,36 @@ button {
   width: 100%;
 }
 
+.invoice-identity strong {
+  background: transparent;
+  border: 0;
+  min-height: auto;
+  padding: 0;
+}
+
 .invoice-identity small {
   color: #74746c;
 }
 
 .detail-grid {
+  align-items: start;
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 1fr) 360px;
+  min-width: 0;
+  width: 100%;
 }
 
 .detail-main,
 .detail-side {
   min-width: 0;
+}
+
+.detail-main {
+  align-content: start;
+  align-items: start;
+  display: grid;
+  gap: 16px;
 }
 
 .detail-side {
@@ -483,9 +574,17 @@ button {
   padding: 16px;
 }
 
+.product-card {
+  align-self: start;
+  height: fit-content;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .section-heading {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   justify-content: space-between;
   margin-bottom: 14px;
@@ -501,7 +600,11 @@ button {
 }
 
 .table-scroll {
-  overflow: auto;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 6px;
+  width: 100%;
 }
 
 table {
@@ -633,6 +736,26 @@ td small {
   padding: 0 10px;
 }
 
+.display-field {
+  background: #f8f8f5;
+  border-left: 3px solid #d7d7d0;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.display-field span {
+  color: #6d6d65;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.display-field strong {
+  color: #171717;
+  font-size: 0.95rem;
+}
+
 .mini-field span,
 .readonly-field label,
 .notes-field span,
@@ -658,6 +781,22 @@ td small {
   resize: vertical;
 }
 
+.note-card .section-heading {
+  margin-bottom: 8px;
+}
+
+.plain-note {
+  margin-top: 0;
+}
+
+.plain-note textarea {
+  background: #ffffff;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  min-height: 104px;
+  padding: 10px;
+}
+
 .summary-row {
   align-items: center;
   border-bottom: 1px solid #eeeeea;
@@ -671,18 +810,9 @@ td small {
   color: #686860;
 }
 
-.summary-row input {
+.summary-row strong {
   font-weight: 800;
   text-align: right;
-}
-
-.summary-row input {
-  background: #f8f8f5;
-  border: 1px solid #e8e8e3;
-  border-radius: 7px;
-  max-width: 156px;
-  min-height: 32px;
-  padding: 0 8px;
 }
 
 .summary-row.strong {
@@ -705,13 +835,11 @@ td small {
   font-weight: 750;
 }
 
-.final-total input {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.22);
+.final-total strong {
   color: #ffffff;
   font-size: 1.8rem;
   line-height: 1;
-  max-width: none;
+  overflow-wrap: anywhere;
   text-align: left;
 }
 
@@ -721,7 +849,8 @@ td small {
 }
 
 .status-badge,
-.days-badge {
+.days-badge,
+.info-tag {
   align-items: center;
   border-radius: 999px;
   display: inline-flex;
@@ -756,6 +885,31 @@ td small {
 .days-badge.success {
   background: #e6f7ec;
   color: #176434;
+}
+
+.info-tag.success {
+  background: #e6f7ec;
+  color: #176434;
+}
+
+.info-tag.warning {
+  background: #fff7d6;
+  color: #765700;
+}
+
+.info-tag.danger {
+  background: #ffe8e5;
+  color: #a11f16;
+}
+
+.info-tag.info {
+  background: #e9f5ff;
+  color: #075985;
+}
+
+.info-tag.neutral {
+  background: #eeeeea;
+  color: #4c4c46;
 }
 
 .days-badge:not(.compact) {
@@ -916,11 +1070,8 @@ td small {
 }
 
 .payment-log-editor {
-  border-top: 1px solid #eeeeea;
   display: grid;
   gap: 12px;
-  margin-top: 14px;
-  padding-top: 14px;
 }
 
 .mini-button {
@@ -951,17 +1102,89 @@ td small {
   gap: 5px;
 }
 
-.payment-log-edit-row input {
+.payment-log-edit-row input,
+.payment-log-edit-row select {
   background: #ffffff;
   border: 1px solid #deded8;
   border-radius: 8px;
   min-height: 34px;
+  outline: 0;
   padding: 0 8px;
 }
 
 .payment-context {
   display: grid;
   gap: 8px;
+}
+
+.days-left-panel {
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding: 14px;
+}
+
+.days-left-panel span,
+.days-left-panel small {
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.days-left-panel strong {
+  font-size: 2.4rem;
+  line-height: 0.95;
+}
+
+.days-left-panel.success {
+  background: #e6f7ec;
+  color: #176434;
+}
+
+.days-left-panel.warning {
+  background: #fff1d8;
+  color: #915200;
+}
+
+.days-left-panel.danger {
+  background: #ffe8e5;
+  color: #a11f16;
+}
+
+.payment-done {
+  background: #f8f8f5;
+  border-radius: 8px;
+  margin: 2px 0 10px;
+  padding: 10px;
+}
+
+.last-payment-box {
+  background: #f8f8f5;
+  border: 1px solid #e8e8e3;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 12px;
+}
+
+.last-payment-box span,
+.last-payment-box small {
+  color: #6d6d65;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.last-payment-box strong {
+  color: #171717;
+}
+
+.payment-log-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 10px;
 }
 
 .payment-log-list {
@@ -982,6 +1205,139 @@ td small {
 .payment-log-item small,
 .muted-copy {
   color: #6c6c64;
+}
+
+.range-picker-shell {
+  position: relative;
+}
+
+.range-trigger {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e3e3de;
+  border-radius: 8px;
+  color: #171717;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+  min-height: 40px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.date-range-popover {
+  background: #ffffff;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(17, 17, 17, 0.14);
+  display: grid;
+  gap: 10px;
+  left: 0;
+  padding: 12px;
+  position: absolute;
+  top: calc(100% + 8px);
+  width: min(320px, 88vw);
+  z-index: 20;
+}
+
+.range-mode-tabs {
+  background: #f2f2ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 4px;
+}
+
+.range-mode-tabs button,
+.calendar-head button,
+.calendar-grid button,
+.span-grid button,
+.range-footer button {
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.range-mode-tabs button,
+.calendar-head button {
+  background: transparent;
+  color: #66665e;
+  min-height: 30px;
+}
+
+.range-mode-tabs button.active {
+  background: #ffffff;
+  color: #111111;
+}
+
+.calendar-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.calendar-grid {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.calendar-grid span {
+  color: #77776f;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.calendar-grid button,
+.span-grid button {
+  background: #f8f8f5;
+  color: #171717;
+  min-height: 34px;
+}
+
+.calendar-grid button.muted {
+  color: #a7a79f;
+}
+
+.calendar-grid button.selected,
+.span-grid button.selected {
+  background: #111111;
+  color: #ffffff;
+}
+
+.span-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.range-footer {
+  align-items: center;
+  border-top: 1px solid #eeeeea;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding-top: 10px;
+}
+
+.range-footer span {
+  color: #66665e;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.range-footer button {
+  background: #111111;
+  color: #ffffff;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.emi-plan {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .login-page {
@@ -1194,20 +1550,32 @@ td small {
 
 @media (max-width: 1180px) {
   .app-page {
-    grid-template-columns: 84px minmax(0, 1fr);
+    grid-template-columns: 76px minmax(0, 1fr);
   }
 
   .app-sidebar {
-    align-items: center;
-    padding: 18px 10px;
+    align-items: stretch;
+    padding: 22px 16px;
   }
 
   .app-brand > span:last-child,
   .side-nav-item span {
-    display: none;
+    display: inline;
   }
 
   .side-nav-item {
+    justify-content: flex-start;
+    padding: 10px 12px;
+    width: 212px;
+  }
+
+  .app-sidebar:not(:hover):not(:focus-within) {
+    align-items: center;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .app-sidebar:not(:hover):not(:focus-within) .side-nav-item {
     justify-content: center;
     padding: 10px;
     width: 44px;
@@ -1251,6 +1619,7 @@ td small {
     border-right: 0;
     border-top: 1px solid #deded8;
     bottom: 0;
+    box-shadow: none;
     flex-direction: row;
     gap: 8px;
     left: 0;
@@ -1260,7 +1629,15 @@ td small {
     position: fixed;
     right: 0;
     top: auto;
+    transition: none;
+    width: auto;
     z-index: 30;
+  }
+
+  .app-sidebar:hover,
+  .app-sidebar:focus-within {
+    box-shadow: none;
+    width: auto;
   }
 
   .app-brand {
@@ -1275,6 +1652,18 @@ td small {
 
   .side-nav-item.separated {
     margin-top: 0;
+  }
+
+  .side-nav-item,
+  .app-sidebar:not(:hover):not(:focus-within) .side-nav-item {
+    gap: 0;
+    justify-content: center;
+    padding: 10px;
+    width: 44px;
+  }
+
+  .side-nav-item span {
+    display: none;
   }
 
   .workspace {
@@ -1392,5 +1781,36 @@ td small {
   .welcome-copy h1 {
     font-size: 2.35rem;
     line-height: 1.02;
+  }
+}
+
+@media (min-width: 1440px) {
+  .app-page {
+    grid-template-columns: 244px minmax(0, 1fr);
+  }
+
+  .app-sidebar,
+  .app-sidebar:hover,
+  .app-sidebar:focus-within,
+  .app-sidebar:not(:hover):not(:focus-within) {
+    align-items: stretch;
+    box-shadow: none;
+    padding-left: 16px;
+    padding-right: 16px;
+    width: 244px;
+  }
+
+  .app-sidebar:not(:hover):not(:focus-within) .app-brand > span:last-child,
+  .app-sidebar:not(:hover):not(:focus-within) .side-nav-item span {
+    opacity: 1;
+    width: auto;
+  }
+
+  .app-sidebar:not(:hover):not(:focus-within) .side-nav-item,
+  .side-nav-item {
+    gap: 12px;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    width: 212px;
   }
 }
