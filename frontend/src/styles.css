@@ -40,10 +40,30 @@ button {
   border: 0;
 }
 
+.landing-page {
+  align-items: center;
+  background: #f4f4f1;
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.landing-page p {
+  font-size: clamp(1.6rem, 6vw, 3.2rem);
+  font-weight: 750;
+  margin: 0;
+}
+
+.landing-login {
+  min-width: 112px;
+}
+
 .app-page {
   background: #f4f4f1;
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 244px minmax(0, 1fr);
   min-height: 100vh;
   overflow-x: hidden;
   width: 100%;
@@ -64,30 +84,28 @@ button {
   padding: 22px 16px;
   position: fixed;
   top: 0;
-  transition:
-    box-shadow 180ms ease,
-    width 180ms ease;
+  transition: none;
   white-space: nowrap;
-  width: 76px;
+  width: 244px;
   z-index: 25;
 }
 
 .app-sidebar:hover,
 .app-sidebar:focus-within {
-  box-shadow: 14px 0 38px rgba(22, 22, 20, 0.12);
+  box-shadow: none;
   width: 244px;
 }
 
 .app-sidebar:not(:hover):not(:focus-within) {
-  align-items: center;
-  padding-left: 10px;
-  padding-right: 10px;
+  align-items: stretch;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .app-sidebar:not(:hover):not(:focus-within) .app-brand > span:last-child,
 .app-sidebar:not(:hover):not(:focus-within) .side-nav-item span {
-  opacity: 0;
-  width: 0;
+  opacity: 1;
+  width: auto;
 }
 
 .brand-lockup {
@@ -149,16 +167,19 @@ button {
   text-align: left;
   transition:
     background-color 160ms ease,
-    color 160ms ease,
-    width 180ms ease;
+    color 160ms ease;
   width: 212px;
 }
 
+a.side-nav-item {
+  text-decoration: none;
+}
+
 .app-sidebar:not(:hover):not(:focus-within) .side-nav-item {
-  gap: 0;
-  justify-content: center;
-  padding: 10px;
-  width: 44px;
+  gap: 12px;
+  justify-content: flex-start;
+  padding: 10px 12px;
+  width: 212px;
 }
 
 .side-nav-item span,
@@ -258,18 +279,74 @@ button {
 
 .invoice-list-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   max-height: calc(100vh - 118px);
   min-height: 620px;
   overflow: hidden;
   padding: 14px;
   position: sticky;
   top: 20px;
+  z-index: 20;
 }
 
 .list-tools {
   display: grid;
   gap: 10px;
+}
+
+.invoice-list-tools {
+  border-bottom: 1px solid #eeeeea;
+  margin: -2px -2px 12px;
+  padding: 2px 2px 12px;
+}
+
+.invoice-control-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.menu-control {
+  min-width: 0;
+  position: relative;
+}
+
+.option-menu,
+.date-menu {
+  background: #ffffff;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(17, 17, 17, 0.14);
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  position: fixed;
+  z-index: 80;
+}
+
+.option-menu button,
+.date-range-options button {
+  background: #f8f8f5;
+  border-radius: 7px;
+  color: #33332f;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 750;
+  min-height: 34px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.option-menu button.active,
+.date-range-options button.active {
+  background: #111111;
+  color: #ffffff;
+}
+
+.date-range-options {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .search-field {
@@ -578,7 +655,7 @@ button {
   align-self: start;
   height: fit-content;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .section-heading {
@@ -1241,6 +1318,15 @@ td small {
   z-index: 20;
 }
 
+.date-range-popover.inline {
+  box-shadow: none;
+  left: auto;
+  margin-top: 8px;
+  position: static;
+  top: auto;
+  width: 100%;
+}
+
 .range-mode-tabs {
   background: #f2f2ef;
   border-radius: 8px;
@@ -1291,6 +1377,136 @@ td small {
   text-align: center;
 }
 
+.placeholder-page {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e3e3de;
+  border-radius: 8px;
+  display: grid;
+  min-height: 360px;
+  padding: 24px;
+}
+
+.placeholder-page h2 {
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  margin: 0;
+}
+
+.settings-page {
+  align-content: center;
+  gap: 16px;
+}
+
+.settings-signout {
+  min-width: 112px;
+}
+
+.management-page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+
+.management-grid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+  min-width: 0;
+}
+
+.compact-list,
+.log-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.compact-row,
+.log-row,
+.inventory-column {
+  background: #fafaf8;
+  border: 1px solid #ecece7;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px;
+}
+
+.compact-row strong,
+.compact-row span,
+.compact-row small,
+.log-row strong,
+.log-row span,
+.log-row small,
+.log-row time {
+  overflow-wrap: anywhere;
+}
+
+.compact-row span,
+.compact-row small,
+.log-row span,
+.log-row small,
+.log-row time {
+  color: #686860;
+}
+
+.inventory-adder {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  margin-bottom: 14px;
+}
+
+.inventory-columns {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.inventory-column {
+  align-content: start;
+}
+
+.inventory-column h4 {
+  margin: 0 0 6px;
+}
+
+.row-actions-wide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.row-actions-wide button {
+  background: #f0f0ec;
+  border-radius: 8px;
+  color: #33332f;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 750;
+  min-height: 32px;
+  padding: 7px 9px;
+}
+
+.dialog-actions {
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .calendar-grid button,
 .span-grid button {
   background: #f8f8f5;
@@ -1334,6 +1550,11 @@ td small {
   color: #ffffff;
   min-height: 32px;
   padding: 0 10px;
+}
+
+.range-footer button:disabled {
+  cursor: wait;
+  opacity: 0.45;
 }
 
 .emi-plan {
@@ -1554,8 +1775,30 @@ td small {
   }
 
   .app-sidebar {
+    align-items: center;
+    box-shadow: none;
+    padding: 22px 10px;
+    transition:
+      box-shadow 180ms ease,
+      width 180ms ease;
+    width: 76px;
+  }
+
+  .app-sidebar:hover,
+  .app-sidebar:focus-within {
     align-items: stretch;
-    padding: 22px 16px;
+    box-shadow: 14px 0 38px rgba(22, 22, 20, 0.12);
+    padding-left: 16px;
+    padding-right: 16px;
+    width: 244px;
+  }
+
+  .app-sidebar:focus-within:not(:hover) {
+    align-items: center;
+    box-shadow: none;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: 76px;
   }
 
   .app-brand > span:last-child,
@@ -1564,9 +1807,10 @@ td small {
   }
 
   .side-nav-item {
-    justify-content: flex-start;
-    padding: 10px 12px;
-    width: 212px;
+    gap: 0;
+    justify-content: center;
+    padding: 10px;
+    width: 44px;
   }
 
   .app-sidebar:not(:hover):not(:focus-within) {
@@ -1576,9 +1820,32 @@ td small {
   }
 
   .app-sidebar:not(:hover):not(:focus-within) .side-nav-item {
+    gap: 0;
     justify-content: center;
     padding: 10px;
     width: 44px;
+  }
+
+  .app-sidebar:not(:hover):not(:focus-within) .app-brand > span:last-child,
+  .app-sidebar:not(:hover):not(:focus-within) .side-nav-item span {
+    opacity: 0;
+    width: 0;
+  }
+
+  .app-sidebar:hover .side-nav-item,
+  .app-sidebar:focus-within .side-nav-item {
+    gap: 12px;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    width: 212px;
+  }
+
+  .app-sidebar:hover .app-brand > span:last-child,
+  .app-sidebar:hover .side-nav-item span,
+  .app-sidebar:focus-within .app-brand > span:last-child,
+  .app-sidebar:focus-within .side-nav-item span {
+    opacity: 1;
+    width: auto;
   }
 
   .invoice-layout,
@@ -1597,6 +1864,11 @@ td small {
     grid-auto-flow: column;
     overflow-x: auto;
     overflow-y: hidden;
+  }
+
+  .invoice-list-footer {
+    bottom: auto;
+    position: sticky;
   }
 
   .detail-side {
@@ -1622,22 +1894,27 @@ td small {
     box-shadow: none;
     flex-direction: row;
     gap: 8px;
+    height: auto;
     left: 0;
+    max-height: 76px;
     min-height: auto;
     overflow-x: auto;
+    overflow-y: hidden;
     padding: 10px;
     position: fixed;
     right: 0;
     top: auto;
     transition: none;
-    width: auto;
+    width: 100%;
     z-index: 30;
   }
 
   .app-sidebar:hover,
   .app-sidebar:focus-within {
+    align-items: center;
     box-shadow: none;
-    width: auto;
+    padding: 10px;
+    width: 100%;
   }
 
   .app-brand {
@@ -1662,8 +1939,20 @@ td small {
     width: 44px;
   }
 
-  .side-nav-item span {
+  .app-sidebar:hover .side-nav-item,
+  .app-sidebar:focus-within .side-nav-item {
+    gap: 0;
+    justify-content: center;
+    padding: 10px;
+    width: 44px;
+  }
+
+  .side-nav-item span,
+  .app-sidebar:hover .side-nav-item span,
+  .app-sidebar:focus-within .side-nav-item span {
     display: none;
+    opacity: 0;
+    width: 0;
   }
 
   .workspace {
@@ -1689,8 +1978,22 @@ td small {
   .detail-side,
   .action-panel,
   .date-grid,
-  .conditional-grid {
+  .conditional-grid,
+  .management-grid,
+  .form-grid,
+  .inventory-adder,
+  .inventory-columns,
+  .picker-dialog,
+  .dialog-actions {
     grid-template-columns: 1fr;
+  }
+
+  .picker-search {
+    border-left: 0;
+    border-top: 1px solid #eeeeea;
+    min-height: 0;
+    padding-left: 0;
+    padding-top: 14px;
   }
 
   .section-heading {
@@ -1812,5 +2115,122 @@ td small {
     justify-content: flex-start;
     padding: 10px 12px;
     width: 212px;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1439px) {
+  .app-page {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .app-sidebar,
+  .app-sidebar:not(:hover):not(:focus-within) {
+    align-items: center;
+    box-shadow: none;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: 76px;
+  }
+
+  .app-sidebar:hover,
+  .app-sidebar:focus-within {
+    align-items: stretch;
+    box-shadow: 14px 0 38px rgba(22, 22, 20, 0.12);
+    padding-left: 16px;
+    padding-right: 16px;
+    width: 244px;
+  }
+
+  .app-sidebar:not(:hover):not(:focus-within) .app-brand > span:last-child,
+  .app-sidebar:not(:hover):not(:focus-within) .side-nav-item span,
+  .app-sidebar:focus-within:not(:hover) .app-brand > span:last-child,
+  .app-sidebar:focus-within:not(:hover) .side-nav-item span {
+    opacity: 0;
+    width: 0;
+  }
+
+  .app-sidebar:not(:hover):not(:focus-within) .side-nav-item,
+  .app-sidebar:focus-within:not(:hover) .side-nav-item,
+  .side-nav-item {
+    gap: 0;
+    justify-content: center;
+    padding: 10px;
+    width: 44px;
+  }
+
+  .app-sidebar:hover .app-brand > span:last-child,
+  .app-sidebar:hover .side-nav-item span,
+  .app-sidebar:focus-within .app-brand > span:last-child,
+  .app-sidebar:focus-within .side-nav-item span {
+    opacity: 1;
+    width: auto;
+  }
+
+  .app-sidebar:hover .side-nav-item,
+  .app-sidebar:focus-within .side-nav-item {
+    gap: 12px;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    width: 212px;
+  }
+
+  .app-sidebar:focus-within:not(:hover) {
+    align-items: center;
+    box-shadow: none;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: 76px;
+  }
+
+  .app-sidebar:focus-within:not(:hover) .app-brand > span:last-child,
+  .app-sidebar:focus-within:not(:hover) .side-nav-item span {
+    opacity: 0;
+    width: 0;
+  }
+
+  .app-sidebar:focus-within:not(:hover) .side-nav-item {
+    gap: 0;
+    justify-content: center;
+    padding: 10px;
+    width: 44px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-page {
+    padding-bottom: 76px;
+  }
+
+  .app-sidebar,
+  .app-sidebar:hover,
+  .app-sidebar:focus-within,
+  .app-sidebar:not(:hover):not(:focus-within) {
+    align-items: center;
+    height: 64px;
+    max-height: 64px;
+    min-height: 64px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px;
+    width: 100%;
+  }
+
+  .app-sidebar:hover .side-nav-item,
+  .app-sidebar:focus-within .side-nav-item,
+  .app-sidebar:not(:hover):not(:focus-within) .side-nav-item,
+  .side-nav-item {
+    flex: 0 0 44px;
+    gap: 0;
+    justify-content: center;
+    padding: 10px;
+    width: 44px;
+  }
+
+  .app-sidebar:hover .side-nav-item span,
+  .app-sidebar:focus-within .side-nav-item span,
+  .side-nav-item span {
+    display: none;
+    opacity: 0;
+    width: 0;
   }
 }
