@@ -54,6 +54,9 @@ function AppShell() {
             <p>Admin workspace</p>
             <h1>{title}</h1>
           </div>
+          <div id="ai_assistant" onClick={()=>{alert("feature not available right now")}}>
+            SARA AI assistant
+          </div>
           <div className="topbar-actions">
             <button type="button" aria-label="Notifications"><Bell size={18} /></button>
             <button className="admin-pill" type="button" onClick={() => window.signout?.()}>Sign out</button>

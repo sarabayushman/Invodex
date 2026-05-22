@@ -289,6 +289,35 @@ a.side-nav-item {
   z-index: 20;
 }
 
+@media (min-width: 1181px) {
+  body,
+  .app-page,
+  .workspace {
+    overflow-x: clip;
+  }
+
+  .workspace {
+    padding-top: 104px;
+  }
+
+  .app-topbar {
+    background: #f4f4f1;
+    left: 76px;
+    margin: 0;
+    padding: 20px 20px 16px;
+    position: fixed;
+    right: 0;
+    top: 0;
+    z-index: 45;
+  }
+
+  .invoice-list-panel {
+    max-height: calc(100vh - 124px);
+    position: sticky;
+    top: 104px;
+  }
+}
+
 .list-tools {
   display: grid;
   gap: 10px;
@@ -1474,6 +1503,164 @@ td small {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.inventory-page {
+  align-content: start;
+}
+
+.inventory-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  max-width: 360px;
+}
+
+.inventory-section {
+  min-height: calc(100vh - 142px);
+}
+
+.category-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.category-tile {
+  background: #fafaf8;
+  border: 1px solid #ecece7;
+  border-radius: 8px;
+  color: #171717;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  min-height: 138px;
+  padding: 14px;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.category-tile:hover,
+.category-tile:focus {
+  border-color: #111111;
+  box-shadow: inset 3px 0 0 #111111;
+  outline: 0;
+}
+
+.category-tile strong,
+.category-tile span,
+.category-tile small {
+  overflow-wrap: anywhere;
+}
+
+.category-tile strong {
+  font-size: 1rem;
+}
+
+.category-tile span {
+  color: #66665e;
+  line-height: 1.4;
+}
+
+.category-tile small {
+  align-self: end;
+  color: #77776f;
+  font-weight: 800;
+}
+
+.category-detail-header {
+  align-items: start;
+  border-bottom: 1px solid #eeeeea;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin: -2px 0 14px;
+  padding-bottom: 14px;
+}
+
+.category-detail-header h3 {
+  font-size: 1.2rem;
+  margin: 0 0 5px;
+  overflow-wrap: anywhere;
+}
+
+.category-detail-header p {
+  color: #686860;
+  line-height: 1.45;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.category-back,
+.icon-button {
+  align-items: center;
+  background: #f0f0ec;
+  border-radius: 8px;
+  color: #33332f;
+  cursor: pointer;
+  display: inline-flex;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.product-vertical-list {
+  display: grid;
+  gap: 10px;
+}
+
+.product-list-row {
+  align-items: center;
+  background: #fafaf8;
+  border: 1px solid #ecece7;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 76px;
+  padding: 12px;
+}
+
+.product-list-row strong,
+.product-list-row span,
+.product-list-row small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.product-list-row span,
+.product-list-row small,
+.product-row-meta small {
+  color: #686860;
+}
+
+.product-list-row span {
+  margin-top: 4px;
+}
+
+.product-list-row small {
+  margin-top: 5px;
+}
+
+.product-row-meta {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  min-width: 96px;
+}
+
+.product-dialog-grid .notes-field {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.inventory-blank {
+  align-items: center;
+  color: #b0b0a8;
+  display: grid;
+  justify-items: center;
+  min-height: calc(100vh - 142px);
+}
+
 .inventory-column {
   align-content: start;
 }
@@ -1983,9 +2170,23 @@ td small {
   .form-grid,
   .inventory-adder,
   .inventory-columns,
+  .category-detail-header,
+  .product-list-row,
   .picker-dialog,
   .dialog-actions {
     grid-template-columns: 1fr;
+  }
+
+  .category-detail-header {
+    align-items: stretch;
+  }
+
+  .category-back {
+    justify-self: start;
+  }
+
+  .product-row-meta {
+    justify-items: start;
   }
 
   .picker-search {
@@ -2092,6 +2293,10 @@ td small {
     grid-template-columns: 244px minmax(0, 1fr);
   }
 
+  .app-topbar {
+    left: 244px;
+  }
+
   .app-sidebar,
   .app-sidebar:hover,
   .app-sidebar:focus-within,
@@ -2121,6 +2326,23 @@ td small {
 @media (min-width: 761px) and (max-width: 1439px) {
   .app-page {
     grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .app-sidebar {
+    z-index: 60;
+  }
+
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .action-panel {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .app-sidebar,

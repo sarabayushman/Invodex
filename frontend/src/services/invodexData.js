@@ -76,6 +76,22 @@ export function mapProductFromDb(product) {
   };
 }
 
+export function mapProductCategoryFromDb(category) {
+  if (!category) return null;
+  const items = (category.product_category_items || [])
+    .slice()
+    .sort((first, second) => Number(first.sort_order || 0) - Number(second.sort_order || 0))
+    .map((item) => mapProductFromDb(item.products))
+    .filter(Boolean);
+
+  return {
+    id: category.id,
+    title: category.title || "Untitled category",
+    description: category.description || "",
+    products: items,
+  };
+}
+
 export function mapInvoiceFromDb(invoice) {
   const payment = normalizePayment(invoice.payment, invoice.billing_date);
   const products = (invoice.invoice_items || [])
@@ -166,6 +182,51 @@ export async function upsertProduct(orgId, product) {
     )
     .select()
     .single();
+}
+
+export async function fetchProductCategories(orgId) {
+  return supabase
+    .from("product_categories")
+    .select("*, product_category_items(id, product_id, sort_order, products(*))")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false });
+}
+
+export async function upsertProductCategory(orgId, category) {
+  return supabase
+    .from("product_categories")
+    .upsert(
+      {
+        id: asUuid(category.id),
+        org_id: orgId,
+        title: category.title || "Untitled category",
+        description: category.description || "",
+      },
+      { onConflict: "id" },
+    )
+    .select()
+    .single();
+}
+
+export async function saveProductToCategory(orgId, categoryId, product) {
+  const productResult = await upsertProduct(orgId, product);
+  if (productResult.error) return productResult;
+
+  const itemResult = await supabase
+    .from("product_category_items")
+    .upsert(
+      {
+        org_id: orgId,
+        category_id: categoryId,
+        product_id: productResult.data.id,
+      },
+      { onConflict: "category_id,product_id" },
+    )
+    .select()
+    .single();
+
+  if (itemResult.error) return itemResult;
+  return { data: productResult.data, error: null };
 }
 
 export async function upsertInvoice(orgId, invoice, totals) {
