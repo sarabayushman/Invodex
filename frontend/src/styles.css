@@ -265,6 +265,10 @@ a.side-nav-item {
   width: 100%;
 }
 
+.invoice-layout:has(.invoice-panel-expand) {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .invoice-list-panel,
 .customer-header,
 .product-card,
@@ -327,6 +331,36 @@ a.side-nav-item {
   border-bottom: 1px solid #eeeeea;
   margin: -2px -2px 12px;
   padding: 2px 2px 12px;
+}
+
+.invoice-search-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 36px;
+}
+
+.invoice-panel-toggle,
+.invoice-panel-expand {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  color: #171717;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 1rem;
+  font-weight: 850;
+  height: 42px;
+  justify-content: center;
+  width: 36px;
+}
+
+.invoice-panel-expand {
+  align-self: start;
+  position: sticky;
+  top: 20px;
+  z-index: 20;
 }
 
 .invoice-control-grid {
@@ -403,6 +437,7 @@ a.side-nav-item {
 .summary-row input,
 .payment-log-edit-row select,
 .payment-log-edit-row input,
+.other-charge-row input,
 .notes-field textarea {
   background: transparent;
   border: 0;
@@ -592,6 +627,15 @@ a.side-nav-item {
   overflow-wrap: anywhere;
 }
 
+.customer-flag-line {
+  border-top: 1px solid #eeeeea;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 8px 0 10px;
+  padding-top: 10px;
+}
+
 .customer-meta {
   color: #62625b;
   display: flex;
@@ -778,6 +822,17 @@ td small {
 
 .delivered-check {
   margin-top: 14px;
+}
+
+.delivery-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 14px;
+}
+
+.delivery-checks .delivered-check {
+  margin-top: 0;
 }
 
 .segment-control {
@@ -1472,6 +1527,16 @@ td small {
   padding: 11px;
 }
 
+.customer-row {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.mobile-customer-add {
+  display: none;
+  width: auto;
+}
+
 .compact-row strong,
 .compact-row span,
 .compact-row small,
@@ -1927,6 +1992,111 @@ td small {
   opacity: 0.65;
 }
 
+.last-payment-box {
+  background: #f8f8f5;
+  border: 1px solid #e8e8e3;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.last-payment-box span,
+.last-payment-box small {
+  color: #6d6d65;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.last-payment-box strong {
+  overflow-wrap: anywhere;
+}
+
+.payment-log-totals {
+  background: #fafaf8;
+  border: 1px solid #ecece7;
+  border-radius: 8px;
+  padding: 2px 12px;
+}
+
+.payment-log-actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.payment-log-edit-row .wide-field {
+  grid-column: 1 / -1;
+}
+
+.payment-log-edit-row .icon-button {
+  justify-self: end;
+}
+
+.payment-log-edit-row.status-log {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+}
+
+.money-charge-field {
+  margin: 10px 0;
+}
+
+.other-charges-row span {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.other-charges-row button {
+  background: transparent;
+  color: #111111;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 850;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.other-charges-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.other-charges-form {
+  display: grid;
+  gap: 10px;
+}
+
+.other-charge-row {
+  align-items: end;
+  background: #f8f8f5;
+  border: 1px solid #e8e8e3;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 180px) auto;
+  padding: 10px;
+}
+
+.other-charge-row label {
+  color: #6d6d65;
+  display: grid;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 5px;
+}
+
+.other-charge-row input {
+  background: #ffffff;
+  border: 1px solid #deded8;
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+}
+
 .google-button {
   background: #ffffff;
   border-color: #d8d8d2;
@@ -2038,6 +2208,15 @@ td small {
   .invoice-layout,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .invoice-layout:has(.invoice-panel-expand) {
+    grid-template-columns: 1fr;
+  }
+
+  .invoice-panel-toggle,
+  .invoice-panel-expand {
+    display: none;
   }
 
   .invoice-list-panel {
@@ -2195,6 +2374,20 @@ td small {
     min-height: 0;
     padding-left: 0;
     padding-top: 14px;
+  }
+
+  .customer-editor-card {
+    display: none;
+  }
+
+  .mobile-customer-add {
+    display: inline-flex;
+    width: 100%;
+  }
+
+  .customer-row {
+    align-items: start;
+    grid-template-columns: 1fr;
   }
 
   .section-heading {

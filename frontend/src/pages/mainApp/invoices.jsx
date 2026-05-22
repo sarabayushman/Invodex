@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Check, Edit3, Plus, Save, Search, Send, Trash2 } from "lucide-react";
+import { CalendarDays, Check, Download, Edit3, Plus, Save, Search, Send, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
@@ -14,7 +14,7 @@ import {
 } from "../../services/invodexData";
 import { emptyCustomer, emptyProduct, formatMoney, loadWorkspace, todayIso } from "./workspace";
 
-const filters = ["All", "Pending Payment", "Past Due Date", "Pending Delivery", "Raised Issues"];
+const filters = ["All", "Draft", "Pending Payment", "Past Due Date", "Pending Delivery", "Raised Issues"];
 const dateRanges = ["Today", "This Week", "This Month", "This Year", "Custom"];
 const sortOptions = [
   { label: "Old -> new", value: "old-new" },
@@ -24,6 +24,7 @@ const sortOptions = [
   { label: "Due amount low -> high", value: "due-low-high" },
   { label: "Due amount high -> low", value: "due-high-low" },
 ];
+const paymentModes = ["UPI", "Cash", "Cheque", "Bank transfer"];
 
 function Invoices() {
   const navigate = useNavigate();
@@ -40,6 +41,8 @@ function Invoices() {
   const [openMenu, setOpenMenu] = useState("");
   const [dialog, setDialog] = useState("");
   const [editingProduct, setEditingProduct] = useState(null);
+  const [invoicePanelCollapsed, setInvoicePanelCollapsed] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() => (typeof window === "undefined" ? true : window.innerWidth > 1180));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
@@ -63,16 +66,30 @@ function Invoices() {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    function syncDesktopViewport() {
+      const desktop = window.innerWidth > 1180;
+      setIsDesktopViewport(desktop);
+      if (!desktop) setInvoicePanelCollapsed(false);
+    }
+
+    syncDesktopViewport();
+    window.addEventListener("resize", syncDesktopViewport);
+    return () => window.removeEventListener("resize", syncDesktopViewport);
+  }, []);
+
+  const shouldCollapseInvoicePanel = isDesktopViewport && invoicePanelCollapsed;
+
   const selectedInvoice = invoices.find((invoice) => invoice.id === selectedId) || null;
   const filteredInvoices = useMemo(() => {
     return invoices
-      .filter((invoice) => filter === "All" || invoice.status === filter)
+      .filter((invoice) => filter === "All" || (filter === "Draft" ? getDeliveryStage(invoice) === "draft" : invoice.status === filter))
       .filter((invoice) => invoiceMatchesSearch(invoice, search))
       .filter((invoice) => isInDateRange(invoice.billingDate, dateRange, customRange))
       .sort((first, second) => compareInvoices(first, second, sortBy));
   }, [customRange, dateRange, filter, invoices, search, sortBy]);
   const rows = useMemo(() => (selectedInvoice?.products || []).map(getPricedRow), [selectedInvoice]);
-  const totals = useMemo(() => getInvoiceTotals(rows, selectedInvoice?.payment?.logs || []), [rows, selectedInvoice]);
+  const totals = useMemo(() => getInvoiceTotals(rows, selectedInvoice?.payment), [rows, selectedInvoice]);
   const autosaveQueue = useMemo(() => createAutosaveQueue((invoice) => persistInvoice(invoice)), [orgId]);
 
   function showToast(message) {
@@ -83,7 +100,7 @@ function Invoices() {
   async function persistInvoice(invoice) {
     if (!orgId || !invoice) return;
     const pricedRows = invoice.products.map(getPricedRow);
-    const invoiceTotals = getInvoiceTotals(pricedRows, invoice.payment.logs);
+    const invoiceTotals = getInvoiceTotals(pricedRows, invoice.payment);
     const { data, error: saveError } = await saveInvoiceWithItems(orgId, invoice, invoiceTotals);
     if (saveError) showToast(`Save failed: ${saveError.message}`);
     else if (data?.id && !invoice.dbId) setInvoices((current) => current.map((item) => (item.id === invoice.id ? { ...item, dbId: data.id } : item)));
@@ -91,7 +108,7 @@ function Invoices() {
 
   function finalizeInvoice(invoice) {
     const pricedRows = invoice.products.map(getPricedRow);
-    const invoiceTotals = getInvoiceTotals(pricedRows, invoice.payment.logs);
+    const invoiceTotals = getInvoiceTotals(pricedRows, invoice.payment);
     return { ...invoice, total: invoiceTotals.finalTotal, billingDate: invoice.payment.billingDate, days: getDaysUntilDue(invoice.payment) };
   }
 
@@ -120,9 +137,9 @@ function Invoices() {
       products: [],
       note: "",
       delivered: false,
-      payment: { type: "Spot", billingDate: todayIso(), creditDays: 0, emiMonths: 6, interestRate: 12, paid: false, logs: [] },
+      payment: { type: "Spot", billingDate: todayIso(), creditDays: 0, emiMonths: 6, interestRate: 12, paid: false, logs: [], freightCharges: 0, otherCharges: [], deliveryStage: "draft" },
     });
-    const result = await saveInvoiceWithItems(orgId, invoice, getInvoiceTotals([], []));
+    const result = await saveInvoiceWithItems(orgId, invoice, getInvoiceTotals([], invoice.payment));
     if (result.error) showToast(`Invoice save failed: ${result.error.message}`);
     else {
       setInvoices((current) => [...current, { ...invoice, dbId: result.data.id }]);
@@ -180,18 +197,27 @@ function Invoices() {
     addCustomerToInvoice(savedCustomer);
   }
 
+  function updateDeliveryStage(deliveryStage) {
+    updateSelectedInvoice({
+      delivered: deliveryStage === "delivered",
+      payment: { ...selectedInvoice.payment, deliveryStage },
+    });
+  }
+
   if (loading) return <div className="empty-list">Loading your workspace from Supabase...</div>;
   if (error) return <div className="empty-list">Supabase error: {error}</div>;
 
   return (
     <>
       <div className="invoice-layout">
-        <aside className="invoice-list-panel">
+        {shouldCollapseInvoicePanel ? <button className="invoice-panel-expand" onClick={() => setInvoicePanelCollapsed(false)} type="button" aria-label="Expand invoice panel">&gt;</button> : null}
+        {!shouldCollapseInvoicePanel ? <aside className="invoice-list-panel">
           <InvoiceListControls
             customRange={customRange}
             dateRange={dateRange}
             filter={filter}
             openMenu={openMenu}
+            onCollapse={() => setInvoicePanelCollapsed(true)}
             search={search}
             setCustomRange={setCustomRange}
             setDateRange={setDateRange}
@@ -213,20 +239,23 @@ function Invoices() {
             {!filteredInvoices.length ? <div className="empty-list">No invoices yet.</div> : null}
           </div>
           <div className="invoice-list-footer"><Button className="add-invoice-button" onClick={addInvoice}><Plus size={18} />Add Invoice</Button></div>
-        </aside>
+        </aside> : null}
 
         {selectedInvoice ? (
           <section className="invoice-detail">
             <CustomerHeader invoice={selectedInvoice} totals={totals} onEdit={() => setDialog("customer")} />
             <section className="detail-grid">
               <section className="detail-main">
-                <ProductTable delivered={selectedInvoice.delivered} rows={rows} onAdd={() => { setEditingProduct({ product: { ...emptyProduct }, index: null }); setDialog("product"); }} onDelete={(index) => updateSelectedInvoice({ products: selectedInvoice.products.filter((_, rowIndex) => rowIndex !== index) })} onEdit={(product, index) => { setEditingProduct({ product: { ...product }, index }); setDialog("product"); }} onToggleDelivered={(delivered) => updateSelectedInvoice({ delivered })} />
+                <ProductTable deliveryStage={getDeliveryStage(selectedInvoice)} rows={rows} onAdd={() => { setEditingProduct({ product: { ...emptyProduct }, index: null }); setDialog("product"); }} onDelete={(index) => updateSelectedInvoice({ products: selectedInvoice.products.filter((_, rowIndex) => rowIndex !== index) })} onEdit={(product, index) => { setEditingProduct({ product: { ...product }, index }); setDialog("product"); }} onChangeDeliveryStage={updateDeliveryStage} />
                 <GeneralNote value={selectedInvoice.note} onChange={(note) => updateSelectedInvoice({ note })} />
               </section>
               <aside className="detail-side">
-                <PaymentCard payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} />
-                <MoneySummary totals={totals} />
-                <section className="action-panel"><Button className="secondary-action" onClick={() => setDialog("send")} type="button"><Send size={17} />Send Invoice</Button></section>
+                <PaymentCard payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} onViewLogs={() => setDialog("payment-log")} />
+                <MoneySummary payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} onViewOtherCharges={() => setDialog("other-charges")} />
+                <section className="action-panel">
+                  <Button className="secondary-action" onClick={() => setDialog("send")} type="button"><Send size={17} />Send Invoice</Button>
+                  <Button className="secondary-action" type="button"><Download size={17} />Download Invoice</Button>
+                </section>
               </aside>
             </section>
           </section>
@@ -236,12 +265,14 @@ function Invoices() {
       {toast ? <div className="toast">{toast}</div> : null}
       {dialog === "customer" && selectedInvoice ? <Dialog title="Customer information" onClose={() => setDialog("")}><CustomerDialog customers={customers} invoice={selectedInvoice} onAdd={addCustomerToInvoice} onSaveAndAdd={saveAndAddCustomer} /></Dialog> : null}
       {dialog === "product" && editingProduct ? <Dialog title="Product information" onClose={() => setDialog("")}><ProductDialog editingProduct={editingProduct} products={products} onAdd={addProductToInvoice} onSaveAndAdd={saveAndAddProduct} /></Dialog> : null}
+      {dialog === "payment-log" && selectedInvoice ? <Dialog title="Payment log" onClose={() => setDialog("")}><PaymentLogDialog payment={selectedInvoice.payment} totals={totals} updatePayment={updatePayment} /></Dialog> : null}
+      {dialog === "other-charges" && selectedInvoice ? <Dialog title="Other charges" onClose={() => setDialog("")}><OtherChargesDialog payment={selectedInvoice.payment} updatePayment={updatePayment} /></Dialog> : null}
       {dialog === "send" && selectedInvoice ? <Dialog title="Send Invoice" onClose={() => setDialog("")}><div className="dialog-content"><EditableField label="Recipient" value={selectedInvoice.customerInfo?.email || ""} onChange={() => {}} /><Button type="button"><Send size={17} />Send via Gmail SMTP</Button></div></Dialog> : null}
     </>
   );
 }
 
-function InvoiceListControls({ customRange, dateRange, filter, openMenu, search, setCustomRange, setDateRange, setFilter, setOpenMenu, setSearch, setSortBy, sortBy }) {
+function InvoiceListControls({ customRange, dateRange, filter, onCollapse, openMenu, search, setCustomRange, setDateRange, setFilter, setOpenMenu, setSearch, setSortBy, sortBy }) {
   const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 300 });
 
   function toggleMenu(menu, event) {
@@ -259,7 +290,10 @@ function InvoiceListControls({ customRange, dateRange, filter, openMenu, search,
 
   return (
     <div className="list-tools invoice-list-tools">
-      <div className="search-field"><Search size={16} /><input placeholder="Search invoices" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
+      <div className="invoice-search-row">
+        <div className="search-field"><Search size={16} /><input placeholder="Search invoices" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
+        <button className="invoice-panel-toggle" onClick={onCollapse} type="button" aria-label="Collapse invoice panel">&lt;</button>
+      </div>
       <div className="invoice-control-grid">
         <div className="menu-control">
           <button className="range-trigger" type="button" onClick={(event) => toggleMenu("filter", event)}>Filter: {filter}</button>
@@ -335,11 +369,17 @@ function DateRangePicker({ range, onChange, onDone }) {
 
 function CustomerHeader({ invoice, totals, onEdit }) {
   const customer = invoice.customerInfo || emptyCustomer;
+  const deliveryStage = getDeliveryStage(invoice);
   return (
     <section className="customer-header">
       <div className="company-avatar">{getInitials(customer.name)}</div>
       <div className="customer-copy">
         <p>Customer information</p>
+        <div className="customer-flag-line">
+          <span className={`info-tag ${deliveryStage === "draft" ? "neutral" : "success"}`}>{deliveryStage === "draft" ? "draft" : "confirmed"}</span>
+          {["sent", "delivered"].includes(deliveryStage) ? <span className="info-tag success">{deliveryStage === "delivered" ? "dilevered" : "sent for dilevery"}</span> : null}
+          <span className={`info-tag ${invoice.payment?.paid ? "success" : "warning"}`}>{invoice.payment?.paid ? "payment done" : "payment pending"}</span>
+        </div>
         <h2>{customer.name || "Unknown customer"}</h2>
         <div className="customer-meta"><span>{customer.contact || "No contact selected"}</span><span>{customer.address || "No address"}</span><span>{customer.gstin || "No GSTIN"}</span><span>{customer.email || "No email"}</span><span>{customer.phone || "No phone"}</span></div>
       </div>
@@ -348,7 +388,7 @@ function CustomerHeader({ invoice, totals, onEdit }) {
   );
 }
 
-function ProductTable({ delivered, rows, onAdd, onDelete, onEdit, onToggleDelivered }) {
+function ProductTable({ deliveryStage, rows, onAdd, onDelete, onEdit, onChangeDeliveryStage }) {
   return (
     <section className="product-card">
       <div className="section-heading"><div><p>Product table</p><h3>Line items</h3></div><Button type="button" onClick={onAdd}><Plus size={17} />Add Product</Button></div>
@@ -359,13 +399,25 @@ function ProductTable({ delivered, rows, onAdd, onDelete, onEdit, onToggleDelive
         </table>
       </div>
       {!rows.length ? <p className="muted-copy">No products added yet.</p> : null}
-      <label className="delivered-check"><input checked={delivered} type="checkbox" onChange={(event) => onToggleDelivered(event.target.checked)} /><span>Delivered</span></label>
+      <div className="delivery-checks">
+        <label className="delivered-check"><input checked={deliveryStage !== "draft"} type="checkbox" onChange={(event) => onChangeDeliveryStage(event.target.checked ? "confirmed" : "draft")} /><span>confirm invoice</span></label>
+        {deliveryStage !== "draft" ? <label className="delivered-check"><input checked={["sent", "delivered"].includes(deliveryStage)} type="checkbox" onChange={(event) => onChangeDeliveryStage(event.target.checked ? "sent" : "confirmed")} /><span>sent for dilevery</span></label> : null}
+        {["sent", "delivered"].includes(deliveryStage) ? <label className="delivered-check"><input checked={deliveryStage === "delivered"} type="checkbox" onChange={(event) => onChangeDeliveryStage(event.target.checked ? "delivered" : "sent")} /><span>dilevered</span></label> : null}
+      </div>
     </section>
   );
 }
 
-function PaymentCard({ payment, totals, updatePayment }) {
-  const lastLog = payment.logs[payment.logs.length - 1];
+function PaymentCard({ payment, totals, updatePayment, onViewLogs }) {
+  const logs = normalizePaymentLogs(payment.logs);
+  const displayLogs = payment.paid ? ensureCompletionLog(logs, payment.type) : logs;
+  const lastLog = displayLogs[displayLogs.length - 1];
+
+  function handlePaidChange(checked) {
+    const nextLogs = checked ? ensureCompletionLog(logs, payment.type) : logs.filter((log) => log.kind !== "status");
+    updatePayment({ paid: checked, logs: nextLogs });
+  }
+
   return (
     <section className="side-card">
       <div className="section-heading compact"><div><p>Payment</p><h3>Terms</h3></div></div>
@@ -373,10 +425,70 @@ function PaymentCard({ payment, totals, updatePayment }) {
       <label className="select-field full"><span>Payment type</span><select value={payment.type} onChange={(event) => updatePayment({ type: event.target.value })}><option>Spot</option><option>EMI</option><option>Pay Later</option></select></label>
       <label className="mini-field"><span>Billing date</span><input type="date" value={payment.billingDate} onChange={(event) => updatePayment({ billingDate: event.target.value })} /></label>
       {payment.type === "Pay Later" ? <label className="mini-field"><span>Credit days</span><input min="0" type="number" value={payment.creditDays} onChange={(event) => updatePayment({ creditDays: event.target.value })} /></label> : null}
-      <label className="check-row payment-done"><input checked={Boolean(payment.paid)} type="checkbox" onChange={(event) => updatePayment({ paid: event.target.checked })} /><span>Payment done</span></label>
-      <div className="last-payment-box"><span>Last payment log</span>{lastLog ? <strong>{formatMoney(lastLog.amount)} via {lastLog.mode}</strong> : <strong>No payments yet</strong>}<small>Balance: {formatMoney(totals.balance)}</small></div>
-      <Button className="secondary-action" onClick={() => updatePayment({ logs: [...payment.logs, { amount: 0, date: todayIso(), mode: payment.type === "EMI" ? "EMI" : "UPI", note: "" }] })} type="button"><Plus size={15} />Add log</Button>
+      <label className="check-row payment-done"><input checked={Boolean(payment.paid)} type="checkbox" onChange={(event) => handlePaidChange(event.target.checked)} /><span>Payment done</span></label>
+      <div className="last-payment-box"><span>Payment log</span>{lastLog ? <strong>{formatPaymentLogSummary(lastLog)}</strong> : <strong>No payments yet</strong>}<small>Previously paid: {formatMoney(totals.paid)} | Balance: {formatMoney(totals.balance)}</small></div>
+      <Button className="secondary-action" onClick={onViewLogs} type="button"><Plus size={15} />View all</Button>
     </section>
+  );
+}
+
+function PaymentLogDialog({ payment, totals, updatePayment }) {
+  const logs = payment.paid ? ensureCompletionLog(normalizePaymentLogs(payment.logs), payment.type) : normalizePaymentLogs(payment.logs);
+
+  function setLogs(nextLogs) {
+    const normalizedLogs = normalizePaymentLogs(nextLogs);
+    const paid = normalizedLogs.some((log) => log.kind === "status") || Boolean(payment.paid);
+    updatePayment({ logs: normalizedLogs, paid });
+  }
+
+  function addLog(kind) {
+    setLogs([...logs.filter((log) => log.kind !== "status"), createPaymentLog(payment.type, kind), ...logs.filter((log) => log.kind === "status")]);
+  }
+
+  function updateLog(index, patch) {
+    setLogs(logs.map((log, rowIndex) => (rowIndex === index ? { ...log, ...patch } : log)));
+  }
+
+  function deleteLog(index) {
+    const nextLogs = logs.filter((_, rowIndex) => rowIndex !== index);
+    updatePayment({ logs: nextLogs, paid: nextLogs.some((log) => log.kind === "status") });
+  }
+
+  return (
+    <div className="payment-log-editor">
+      <div className="payment-log-totals">
+        <SummaryRow label="Previously paid" value={formatMoney(totals.paid)} />
+        <SummaryRow label="Late fees" value={formatMoney(totals.lateFees)} />
+        <SummaryRow label="Balance due" value={formatMoney(totals.balance)} strong />
+      </div>
+      <div className="payment-log-actions">
+        <Button className="secondary-action mini-button" onClick={() => addLog("payment")} type="button"><Plus size={15} />Payment</Button>
+        <Button className="secondary-action mini-button" onClick={() => addLog("late_fee")} type="button"><Plus size={15} />Late fee</Button>
+      </div>
+      <div className="payment-log-form">
+        {logs.map((log, index) => (
+          <div className={`payment-log-edit-row ${log.kind === "status" ? "status-log" : ""}`} key={log.id || `${log.date}-${index}`}>
+            {log.kind === "status" ? (
+              <>
+                <div className="display-field"><span>Date</span><strong>{log.date}</strong></div>
+                <div className="display-field"><span>Status</span><strong>{log.note || getCompletionLabel(payment.type)}</strong></div>
+                <button className="icon-button" onClick={() => deleteLog(index)} type="button" aria-label="Delete log"><Trash2 size={15} /></button>
+              </>
+            ) : (
+              <>
+                <label><span>Type</span><select value={log.kind} onChange={(event) => updateLog(index, { kind: event.target.value })}><option value="payment">Payment</option><option value="late_fee">Late fee</option></select></label>
+                <label><span>Date</span><input type="date" value={log.date} onChange={(event) => updateLog(index, { date: event.target.value })} /></label>
+                <label><span>Amount</span><input min="0" type="number" value={log.amount} onChange={(event) => updateLog(index, { amount: Number(event.target.value) })} /></label>
+                <label><span>Mode</span><select value={log.mode} onChange={(event) => updateLog(index, { mode: event.target.value })}>{paymentModes.map((mode) => <option key={mode}>{mode}</option>)}</select></label>
+                <label className="wide-field"><span>Note</span><input value={log.note || ""} onChange={(event) => updateLog(index, { note: event.target.value })} placeholder={log.kind === "late_fee" ? "Late fee reason" : "Payment note"} /></label>
+                <button className="icon-button" onClick={() => deleteLog(index)} type="button" aria-label="Delete log"><Trash2 size={15} /></button>
+              </>
+            )}
+          </div>
+        ))}
+        {!logs.length ? <div className="empty-list">No payment logs yet.</div> : null}
+      </div>
+    </div>
   );
 }
 
@@ -411,8 +523,61 @@ function GeneralNote({ value, onChange }) {
   return <section className="product-card note-card"><div className="section-heading compact"><div><p>Invoice note</p><h3>General note</h3></div></div><label className="notes-field plain-note"><span>Note</span><textarea value={value || ""} onChange={(event) => onChange(event.target.value)} placeholder="Add a general note for this invoice" /></label></section>;
 }
 
-function MoneySummary({ totals }) {
-  return <section className="side-card money-card"><div className="section-heading compact"><div><p>Money summary</p><h3>Total</h3></div></div><SummaryRow label="Subtotal" value={formatMoney(totals.subtotal)} /><SummaryRow label="Total tax" value={formatMoney(totals.tax)} /><div className="final-total"><span>Final Total</span><strong>{formatMoney(totals.finalTotal)}</strong></div><SummaryRow label="Previously paid" value={formatMoney(totals.paid)} /><SummaryRow label="Balance due" value={formatMoney(totals.balance)} strong /></section>;
+function MoneySummary({ payment, totals, updatePayment, onViewOtherCharges }) {
+  return (
+    <section className="side-card money-card">
+      <div className="section-heading compact"><div><p>Money summary</p><h3>Total</h3></div></div>
+      <SummaryRow label="Subtotal" value={formatMoney(totals.subtotal)} />
+      <SummaryRow label="Total tax" value={formatMoney(totals.tax)} />
+      <label className="mini-field money-charge-field"><span>Freight charges</span><input min="0" type="number" value={payment.freightCharges ?? 0} onChange={(event) => updatePayment({ freightCharges: Number(event.target.value) })} /></label>
+      <div className="summary-row other-charges-row">
+        <span>Other charges <button type="button" onClick={onViewOtherCharges}>View all</button></span>
+        <strong>{formatMoney(totals.otherCharges)}</strong>
+      </div>
+      <div className="final-total"><span>Final Total</span><strong>{formatMoney(totals.finalTotal)}</strong></div>
+      <SummaryRow label="Previously paid" value={formatMoney(totals.paid)} />
+      <SummaryRow label="Balance due" value={formatMoney(totals.balance)} strong />
+    </section>
+  );
+}
+
+function OtherChargesDialog({ payment, updatePayment }) {
+  const charges = normalizeOtherCharges(payment.otherCharges);
+
+  function setCharges(nextCharges) {
+    updatePayment({ otherCharges: normalizeOtherCharges(nextCharges) });
+  }
+
+  function addCharge() {
+    setCharges([...charges, createOtherCharge()]);
+  }
+
+  function updateCharge(index, patch) {
+    setCharges(charges.map((charge, rowIndex) => (rowIndex === index ? { ...charge, ...patch } : charge)));
+  }
+
+  function deleteCharge(index) {
+    setCharges(charges.filter((_, rowIndex) => rowIndex !== index));
+  }
+
+  const total = charges.reduce((sum, charge) => sum + Number(charge.cost || 0), 0);
+
+  return (
+    <div className="other-charges-editor">
+      <div className="payment-log-totals"><SummaryRow label="Other charges total" value={formatMoney(total)} strong /></div>
+      <div className="other-charges-form">
+        {charges.map((charge, index) => (
+          <div className="other-charge-row" key={charge.id || index}>
+            <label><span>Title</span><input value={charge.title} onChange={(event) => updateCharge(index, { title: event.target.value })} placeholder="Charge title" /></label>
+            <label><span>Cost</span><input min="0" type="number" value={charge.cost} onChange={(event) => updateCharge(index, { cost: Number(event.target.value) })} /></label>
+            <button className="icon-button" onClick={() => deleteCharge(index)} type="button" aria-label="Delete charge"><Trash2 size={15} /></button>
+          </div>
+        ))}
+        {!charges.length ? <div className="empty-list">No other charges yet.</div> : null}
+      </div>
+      <Button className="secondary-action" onClick={addCharge} type="button"><Plus size={15} />Add another</Button>
+    </div>
+  );
 }
 
 function Dialog({ title, children, onClose }) {
@@ -439,7 +604,7 @@ function DaysBadge({ days, compact }) {
 function invoiceMatchesSearch(invoice, search) {
   const query = search.trim().toLowerCase();
   if (!query) return true;
-  return `${invoice.id} ${invoice.customer} ${invoice.customerInfo?.name || ""} ${invoice.customerInfo?.email || ""} ${invoice.status}`.toLowerCase().includes(query);
+  return `${invoice.id} ${invoice.customer} ${invoice.customerInfo?.name || ""} ${invoice.customerInfo?.email || ""} ${invoice.status} ${getDeliveryStage(invoice)}`.toLowerCase().includes(query);
 }
 
 function compareInvoices(first, second, sortBy) {
@@ -453,7 +618,12 @@ function compareInvoices(first, second, sortBy) {
 
 function getInvoiceBalance(invoice) {
   const rows = (invoice.products || []).map(getPricedRow);
-  return getInvoiceTotals(rows, invoice.payment?.logs || []).balance;
+  return getInvoiceTotals(rows, invoice.payment).balance;
+}
+
+function getDeliveryStage(invoice) {
+  if (invoice?.payment?.deliveryStage) return invoice.payment.deliveryStage;
+  return invoice?.delivered ? "delivered" : "draft";
 }
 
 function shouldShowDaysLeft(payment, balance) {
@@ -524,12 +694,100 @@ function getPricedRow(item) {
   return { ...item, markedPrice, total: markedPrice * Number(item.qty) };
 }
 
-function getInvoiceTotals(rows, logs) {
+function getInvoiceTotals(rows, payment = {}) {
+  const normalizedLogs = normalizePaymentLogs(Array.isArray(payment) ? payment : payment?.logs);
+  const freightCharges = Number(Array.isArray(payment) ? 0 : payment?.freightCharges || 0);
+  const otherCharges = normalizeOtherCharges(Array.isArray(payment) ? [] : payment?.otherCharges).reduce((sum, item) => sum + Number(item.cost || 0), 0);
   const subtotal = rows.reduce((sum, item) => sum + Number(item.unit) * Number(item.qty), 0);
   const tax = rows.reduce((sum, item) => sum + (Number(item.unit) - Number(item.extraDiscount)) * Number(item.qty) * (Number(item.gst) / 100), 0);
-  const finalTotal = Math.round(subtotal + tax);
-  const paid = logs.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  return { subtotal, tax, finalTotal, paid, balance: finalTotal - paid };
+  const lateFees = normalizedLogs.filter((item) => item.kind === "late_fee").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const finalTotal = Math.round(subtotal + tax + freightCharges + otherCharges + lateFees);
+  const paid = normalizedLogs.filter((item) => item.kind === "payment").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  return { subtotal, tax, freightCharges, otherCharges, lateFees, finalTotal, paid, balance: finalTotal - paid };
+}
+
+function normalizePaymentLogs(logs) {
+  if (!Array.isArray(logs)) return [];
+  return logs.map((log, index) => ({
+    id: log.id || `log-${Date.now()}-${index}`,
+    kind: log.kind || (log.type === "late_fee" ? "late_fee" : log.type === "status" ? "status" : "payment"),
+    amount: Number(log.amount || 0),
+    date: log.date || todayIso(),
+    mode: normalizePaymentMode(log.mode),
+    note: log.note || "",
+  }));
+}
+
+function normalizePaymentMode(mode) {
+  if (!mode) return "UPI";
+  const match = paymentModes.find((item) => item.toLowerCase() === String(mode).toLowerCase());
+  if (match) return match;
+  if (String(mode).toLowerCase() === "checq") return "Cheque";
+  if (String(mode).toLowerCase() === "emi") return "Bank transfer";
+  return mode;
+}
+
+function createPaymentLog(paymentType, kind = "payment") {
+  return {
+    id: `log-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    kind,
+    amount: 0,
+    date: todayIso(),
+    mode: kind === "late_fee" ? "Cash" : paymentType === "EMI" ? "Bank transfer" : "UPI",
+    note: kind === "late_fee" ? "Late fee" : getPaymentTypeLogLabel(paymentType),
+  };
+}
+
+function ensureCompletionLog(logs, paymentType) {
+  const normalizedLogs = normalizePaymentLogs(logs);
+  const existingCompletion = normalizedLogs.find((log) => log.kind === "status");
+  const withoutCompletion = normalizedLogs.filter((log) => log.kind !== "status");
+  return [
+    ...withoutCompletion,
+    {
+      id: existingCompletion?.id || `payment-completed-${paymentType.toLowerCase().replaceAll(" ", "-")}`,
+      kind: "status",
+      amount: 0,
+      date: existingCompletion?.date || todayIso(),
+      mode: "UPI",
+      note: getCompletionLabel(paymentType),
+    },
+  ];
+}
+
+function getPaymentTypeLogLabel(paymentType) {
+  if (paymentType === "EMI") return "EMI payment";
+  if (paymentType === "Pay Later") return "Pay later payment";
+  return "Spot payment";
+}
+
+function getCompletionLabel(paymentType) {
+  if (paymentType === "EMI") return "EMI payment completed";
+  if (paymentType === "Pay Later") return "Pay later payment completed";
+  return "Payment completed";
+}
+
+function formatPaymentLogSummary(log) {
+  if (log.kind === "status") return log.note || "Payment completed";
+  const prefix = log.kind === "late_fee" ? "Late fee" : "Paid";
+  return `${prefix}: ${formatMoney(log.amount)} via ${log.mode}`;
+}
+
+function normalizeOtherCharges(charges) {
+  if (!Array.isArray(charges)) return [];
+  return charges.map((charge, index) => ({
+    id: charge.id || `charge-${Date.now()}-${index}`,
+    title: charge.title || "",
+    cost: Number(charge.cost || 0),
+  }));
+}
+
+function createOtherCharge() {
+  return {
+    id: `charge-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: "",
+    cost: 0,
+  };
 }
 
 function getDaysUntilDue(payment) {

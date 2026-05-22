@@ -93,7 +93,7 @@ export function mapProductCategoryFromDb(category) {
 }
 
 export function mapInvoiceFromDb(invoice) {
-  const payment = normalizePayment(invoice.payment, invoice.billing_date);
+  const payment = normalizePayment(invoice.payment, invoice.billing_date, invoice.delivered);
   const products = (invoice.invoice_items || [])
     .slice()
     .sort((first, second) => Number(first.sort_order || 0) - Number(second.sort_order || 0))
@@ -157,6 +157,10 @@ export async function upsertCustomer(orgId, customer) {
     )
     .select()
     .single();
+}
+
+export async function deleteCustomerRecord(customerId) {
+  return supabase.from("customers").delete().eq("id", customerId);
 }
 
 export async function upsertProduct(orgId, product) {
@@ -319,7 +323,7 @@ function asUuid(value) {
   return uuidPattern.test(value) ? value : undefined;
 }
 
-function normalizePayment(payment, billingDate) {
+function normalizePayment(payment, billingDate, delivered = false) {
   return {
     type: payment?.type || "Spot",
     billingDate: payment?.billingDate || billingDate || new Date().toISOString().slice(0, 10),
@@ -330,6 +334,9 @@ function normalizePayment(payment, billingDate) {
     nextEmiDueDate: payment?.nextEmiDueDate || null,
     closingDate: payment?.closingDate || null,
     logs: Array.isArray(payment?.logs) ? payment.logs : [],
+    freightCharges: Number(payment?.freightCharges || 0),
+    otherCharges: Array.isArray(payment?.otherCharges) ? payment.otherCharges : [],
+    deliveryStage: payment?.deliveryStage || (delivered ? "delivered" : "draft"),
   };
 }
 
